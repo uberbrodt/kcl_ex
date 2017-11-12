@@ -1,17 +1,17 @@
-defmodule KCL.RecordProcessorTest do
+defmodule KinesisClient.RecordProcessorTest do
   use ExUnit.Case
   use Timex
   import TestHelper
-  alias KCL.IOProxy
+  alias KinesisClient.IOProxy
 
   defmodule MyProcessor do
-    use KCL.RecordProcessor
+    use KinesisClient.RecordProcessor
 
     def process_record(data), do: "I got #{data}"
   end
 
   defmodule BrokenProcessor do
-    use KCL.RecordProcessor
+    use KinesisClient.RecordProcessor
 
     def process_record data do
       raise "oops"

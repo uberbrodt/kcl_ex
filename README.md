@@ -8,7 +8,7 @@ ability to handle shards automatically.
 ## Install
 Add this to your dependencies
 ```
-    {:kcl, "~> 0.1.0"},
+    {:kinesis_client, "~> 0.1.0"},
 ```
 and run `mix deps.get`
 
@@ -19,7 +19,7 @@ Daemon. Here's an example of very basic usage:
 
 ```
   defmodule MyProcessor do
-    use KCL.RecordProcessor
+    use KinesisClient.RecordProcessor
 
     def process_record(data), do: "I got #{data}"
   end

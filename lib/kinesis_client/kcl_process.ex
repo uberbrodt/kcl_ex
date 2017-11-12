@@ -1,6 +1,6 @@
-defmodule KCL.KCLProcess do
+defmodule KinesisClient.KinesisClientProcess do
   @moduledoc false
-  alias KCL.IOProxy
+  alias KinesisClient.IOProxy
 
   @default_options [
     input: :stdio,

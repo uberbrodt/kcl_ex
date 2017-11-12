@@ -1,4 +1,4 @@
-defmodule KCL.IOProxy do
+defmodule KinesisClient.IOProxy do
   @moduledoc false
   def initialize io_streams = [input: _, output: _, error: _] do
     Agent.start_link(fn -> io_streams end, name: __MODULE__)

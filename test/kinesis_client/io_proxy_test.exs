@@ -1,6 +1,6 @@
-defmodule KCL.IOProxyTest do
+defmodule KinesisClient.IOProxyTest do
   use ExUnit.Case
-  alias KCL.IOProxy
+  alias KinesisClient.IOProxy
   import TestHelper
 
   test "it should skip blank lines" do

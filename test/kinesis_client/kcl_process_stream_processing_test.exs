@@ -1,8 +1,8 @@
-defmodule KCL.KCLProcessStreamProcessingTest do
+defmodule KinesisClient.KinesisClientProcessStreamProcessingTest do
   use ExUnit.Case
-  alias KCL.KCLProcess
-  alias KCL.RecordProcessor
-  alias KCL.IOProxy
+  alias KinesisClient.KinesisClientProcess
+  alias KinesisClient.RecordProcessor
+  alias KinesisClient.IOProxy
   import TestHelper
 
   defmodule TestRecordProcessor do
@@ -32,7 +32,7 @@ defmodule KCL.KCLProcessStreamProcessingTest do
 
     io = open_io input_string
 
-    KCLProcess.run(TestRecordProcessor, io)
+    KinesisClientProcess.run(TestRecordProcessor, io)
 
     # NOTE: The first checkpoint is expected to fail
     #       with a ThrottlingException and hence the
