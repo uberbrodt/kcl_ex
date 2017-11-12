@@ -1,4 +1,4 @@
-defmodule KinesisClient.KinesisClientProcess do
+defmodule KinesisClient.KCLProcess do
   @moduledoc false
   alias KinesisClient.IOProxy
 

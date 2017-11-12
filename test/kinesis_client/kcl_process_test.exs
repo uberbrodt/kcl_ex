@@ -1,6 +1,6 @@
-defmodule KinesisClient.KinesisClientProcessTest do
+defmodule KinesisClient.KCLProcessTest do
   use ExUnit.Case
-  alias KinesisClient.KinesisClientProcess
+  alias KinesisClient.KCLProcess
   alias KinesisClient.RecordProcessor
   alias KinesisClient.IOProxy
   import TestHelper
@@ -24,7 +24,7 @@ defmodule KinesisClient.KinesisClientProcessTest do
         }
         io = open_io(input_spec[:input])
 
-        KinesisClientProcess.run(DoNothingRecordProcessor, io)
+        KCLProcess.run(DoNothingRecordProcessor, io)
 
         ~s({"action":"status","responseFor":"#{input_spec[:action]}"})
         |> assert_io io
@@ -38,7 +38,7 @@ defmodule KinesisClient.KinesisClientProcessTest do
         }
         io = open_io(input_spec[:input])
 
-        KinesisClientProcess.run(DoNothingRecordProcessor, io)
+        KCLProcess.run(DoNothingRecordProcessor, io)
 
         ~s({"action":"status","responseFor":"#{input_spec[:action]}"})
         |> assert_io io
@@ -52,7 +52,7 @@ defmodule KinesisClient.KinesisClientProcessTest do
         }
         io = open_io(input_spec[:input])
 
-        KinesisClientProcess.run(DoNothingRecordProcessor, io)
+        KCLProcess.run(DoNothingRecordProcessor, io)
 
         ~s({"action":"status","responseFor":"#{input_spec[:action]}"})
         |> assert_io io

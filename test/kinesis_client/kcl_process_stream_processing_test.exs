@@ -1,6 +1,6 @@
 defmodule KinesisClient.KinesisClientProcessStreamProcessingTest do
   use ExUnit.Case
-  alias KinesisClient.KinesisClientProcess
+  alias KinesisClient.KCLProcess
   alias KinesisClient.RecordProcessor
   alias KinesisClient.IOProxy
   import TestHelper
@@ -32,7 +32,7 @@ defmodule KinesisClient.KinesisClientProcessStreamProcessingTest do
 
     io = open_io input_string
 
-    KinesisClientProcess.run(TestRecordProcessor, io)
+    KCLProcess.run(TestRecordProcessor, io)
 
     # NOTE: The first checkpoint is expected to fail
     #       with a ThrottlingException and hence the
