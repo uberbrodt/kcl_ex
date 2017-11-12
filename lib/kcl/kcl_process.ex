@@ -1,6 +1,6 @@
-defmodule Kcl.KCLProcess do
+defmodule KCL.KCLProcess do
   @moduledoc false
-  alias Kcl.IOProxy
+  alias KCL.IOProxy
 
   @default_options [
     input: :stdio,

@@ -1,8 +1,8 @@
-defmodule Kcl.KCLProcessStreamProcessingTest do
+defmodule KCL.KCLProcessStreamProcessingTest do
   use ExUnit.Case
-  alias Kcl.KCLProcess
-  alias Kcl.RecordProcessor
-  alias Kcl.IOProxy
+  alias KCL.KCLProcess
+  alias KCL.RecordProcessor
+  alias KCL.IOProxy
   import TestHelper
 
   defmodule TestRecordProcessor do

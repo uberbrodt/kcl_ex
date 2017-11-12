@@ -1,6 +1,6 @@
-defmodule Kcl.RecordProcessor do
+defmodule KCL.RecordProcessor do
   @moduledoc false
-  alias Kcl.IOProxy
+  alias KCL.IOProxy
   require Logger
   @default_options [
     sleep_seconds: 5,
@@ -13,7 +13,7 @@ defmodule Kcl.RecordProcessor do
       import unquote(__MODULE__)
       use Timex
       require Logger
-      alias Kcl.RecordProcessor
+      alias KCL.RecordProcessor
 
       def initialize(options) do
         RecordProcessor.initialize(options)

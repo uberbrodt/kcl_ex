@@ -1,6 +1,6 @@
-defmodule Kcl.IOProxyTest do
+defmodule KCL.IOProxyTest do
   use ExUnit.Case
-  alias Kcl.IOProxy
+  alias KCL.IOProxy
   import TestHelper
 
   test "it should skip blank lines" do
