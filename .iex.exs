@@ -1,0 +1,71 @@
+defmodule CBDevTesting do
+  alias ExAws.Kinesis
+  @coordinator_name MyTestCoordinator
+
+  def update_shard_count(stream_name, shard_count) do
+    operation = %ExAws.Operation.JSON{
+      http_method: :post,
+      headers: [
+        {"x-amz-target", "Kinesis_20131202.UpdateShardCount"},
+        {"content-type", "application/x-amz-json-1.1"}
+      ],
+      path: "/",
+      data: %{
+        ScalingType: "UNIFORM_SCALING",
+        StreamName: stream_name,
+        TargetShardCount: shard_count
+      },
+      service: :kinesis
+    }
+
+    ExAws.request(operation)
+  end
+
+  def describe_stream(stream_name) do
+    Kinesis.describe_stream(stream_name) |> ExAws.request()
+  end
+
+  def list_streams do
+    Kinesis.list_streams() |> ExAws.request()
+  end
+
+  def create_stream(stream_name, shard_count) do
+    stream_name |> Kinesis.create_stream(shard_count) |> ExAws.request()
+  end
+
+  def stream_name do
+    "decline-roman-empire-dev"
+  end
+
+  def start_coordinator(overrides) do
+    opts = [
+      name: @coordinator_name,
+      app_name: "uberbrodt-kinesis-client-dev-app",
+      stream_name: stream_name(),
+      shard_supervisor_name: MyShardSupervisor,
+      notify_pid: self()
+    ]
+
+    KinesisClient.Stream.Coordinator.start_link(opts)
+  end
+
+  def list_child_to_parent() do
+    g = get_coordinator_graph()
+
+    n = g |> :digraph.vertices() |> Enum.map(fn v -> {v, :digraph.in_neighbours(g, v)} end)
+
+    Enum.sort(n, fn {_, n1}, {_, n2} -> length(n1) <= length(n2) end)
+  end
+
+  def list_parent_to_child() do
+    g = get_coordinator_graph()
+
+    n = g |> :digraph.vertices() |> Enum.map(fn v -> {v, :digraph.out_neighbours(g, v)} end)
+
+    Enum.sort(n, fn {_, n1}, {_, n2} -> length(n1) >= length(n2) end)
+  end
+
+  def get_coordinator_graph() do
+    GenServer.call(@coordinator_name, :get_graph)
+  end
+end
