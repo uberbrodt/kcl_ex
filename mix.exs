@@ -5,8 +5,8 @@ defmodule KinesisClient.Mixfile do
     [
       app: :kinesis_client,
       version: "0.2.0",
-      elixir: "~> 1.5",
-      start_permanent: Mix.env == :prod,
+      elixir: "~> 1.6",
+      start_permanent: Mix.env() == :prod,
       package: package(),
       description: description(),
       deps: deps(),
@@ -32,17 +32,16 @@ defmodule KinesisClient.Mixfile do
     [
       licenses: ["Apache 2.0"],
       maintainers: ["Chris Brodt"],
-      links: %{"Github": "https://github.com/uberbrodt/kcl_ex"}
+      links: %{Github: "https://github.com/uberbrodt/kcl_ex"}
     ]
   end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:exjsx, "~> 4.0.0"},
-      {:credo, "~> 0.8", only: [:dev, :test], runtime: false},
-      {:timex, "~> 3.1.0"},
-      {:ex_doc, "~> 0.16", only: :dev, runtime: false},
+      {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
+      {:ex_doc, "~> 0.21", only: :dev, runtime: false}
     ]
   end
 end
