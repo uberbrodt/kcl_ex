@@ -22,6 +22,14 @@ defmodule KinesisClient.Stream.CoordinatorTest do
       {:ok, KinesisClient.KinesisResponses.describe_stream()}
     end)
 
+    AppStateMock
+    |> stub(:get_lease, fn _, _, _ ->
+      :not_found
+    end)
+    |> stub(:create_lease, fn _, _, _, _ ->
+      :ok
+    end)
+
     {:ok, _} = start_supervised({Coordinator, opts})
 
     assert_receive {:shards, shards}, 5_000
@@ -47,6 +55,14 @@ defmodule KinesisClient.Stream.CoordinatorTest do
       {:ok, KinesisClient.KinesisResponses.describe_stream(has_more_shards: false)}
     end)
 
+    AppStateMock
+    |> stub(:get_lease, fn _, _, _ ->
+      :not_found
+    end)
+    |> stub(:create_lease, fn _, _, _, _ ->
+      :ok
+    end)
+
     {:ok, _} = start_supervised({Coordinator, opts})
 
     assert_receive {:shards, shards}, 5_000
@@ -65,6 +81,14 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     stub(KinesisMock, :describe_stream, fn stream_name, _opts ->
       assert stream_name == @stream_name
       {:ok, KinesisClient.KinesisResponses.describe_stream_split()}
+    end)
+
+    AppStateMock
+    |> stub(:get_lease, fn _, _, _ ->
+      :not_found
+    end)
+    |> stub(:create_lease, fn _, _, _, _ ->
+      :ok
     end)
 
     {:ok, _} = start_supervised({Coordinator, opts})
@@ -87,6 +111,14 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     expect(KinesisMock, :describe_stream, fn stream_name, _opts ->
       assert stream_name == @stream_name
       {:ok, KinesisClient.KinesisResponses.describe_stream(stream_status: "UPDATING")}
+    end)
+
+    AppStateMock
+    |> stub(:get_lease, fn _, _, _ ->
+      :not_found
+    end)
+    |> stub(:create_lease, fn _, _, _, _ ->
+      :ok
     end)
 
     {:ok, coordinator} = start_supervised({Coordinator, opts})

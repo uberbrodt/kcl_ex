@@ -29,14 +29,14 @@ defmodule KinesisClient.Stream.AppState.Adapter do
   @callback update_checkpoint(
               shard_id :: String.t(),
               lease_owner :: String.t(),
-              checkpoint :: integer
+              checkpoint :: String.t()
             ) ::
               :ok | {:error, any}
 
   @callback update_checkpoint(
               shard_id :: String.t(),
               lease_owner :: String.t(),
-              checkpoint :: integer,
+              checkpoint :: String.t(),
               opts :: keyword
             ) ::
               :ok | {:error, any}

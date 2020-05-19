@@ -63,7 +63,9 @@ defmodule KinesisClient.Stream.Shard.Lease do
           take_or_renew_lease(s, state)
       end
 
-    # TODO: start processing stream if this process has taken or created the lease.
+    if new_state.lease_owner == true do
+      # TODO: start processing stream if this process has taken or created the lease.
+    end
 
     notify({:initialized, new_state}, state)
 

@@ -1,4 +1,4 @@
-defmodule KinsisClient.TestShardConsumer do
+defmodule KinesisClient.TestShardConsumer do
   @behaviour Broadway
 
   @impl Broadway
@@ -7,6 +7,8 @@ defmodule KinsisClient.TestShardConsumer do
       nil -> send(self(), {:handle_message, processor, msg, context})
       pid when is_pid(pid) -> send(pid, {:handle_message, processor, msg, context})
     end
+
+    msg
   end
 
   @impl Broadway
@@ -15,6 +17,8 @@ defmodule KinsisClient.TestShardConsumer do
       nil -> send(self(), {:handle_batch, batcher, messages, batch_info, context})
       pid when is_pid(pid) -> send(pid, {:handle_batch, batcher, messages, batch_info, context})
     end
+
+    messages
   end
 
   @impl Broadway
@@ -23,5 +27,7 @@ defmodule KinsisClient.TestShardConsumer do
       nil -> send(self(), {:handle_failed, messages, context})
       pid when is_pid(pid) -> send(pid, {:handle_failed, messages, context})
     end
+
+    messages
   end
 end

@@ -29,11 +29,17 @@ defmodule KinesisClient.Kinesis.Adapter do
               shard_id :: binary,
               shard_iterator_type :: iterator_type,
               opts :: keyword
-            ) :: {:ok, map}
+            ) :: {:ok, %{shard_iterator: binary}}
 
   @callback describe_stream(stream_name :: binary, opts :: keyword) :: {:ok, map}
 
-  @callback get_records(shard_iterator :: String.t(), opts :: keyword) :: {:ok, map}
+  @callback get_records(shard_iterator :: String.t(), opts :: keyword) ::
+              {:ok,
+               %{
+                 next_shard_iterator: binary | nil,
+                 millis_behind_latest: integer,
+                 records: list(%{data: binary, partition_key: binary})
+               }}
 end
 
 defmodule KinesisClient.Kinesis.AwsAdapter do

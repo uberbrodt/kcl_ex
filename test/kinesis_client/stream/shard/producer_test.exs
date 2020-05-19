@@ -14,7 +14,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     end)
     |> expect(:get_records, fn _, _ ->
       records = [
-        %{data: "foo"}
+        %{data: "foo", sequence_number: "12345"}
       ]
 
       {:ok, %{next_shard_iterator: "foo", millis_behind_latest: 5_000, records: records}}
@@ -23,7 +23,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     GenStage.sync_subscribe(consumer, to: producer)
     assert_receive {:consumer_events, [record]}, 5_000
 
-    assert record[:data] == "foo"
+    assert record.data == "foo"
   end
 
   test "stores demand if :status == :stopped" do
@@ -48,7 +48,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     end)
     |> expect(:get_records, fn _, opts ->
       count = opts[:limit] - 5
-      records = Enum.map(0..count, fn _ -> %{data: "foo"} end)
+      records = Enum.map(0..count, fn _ -> %{data: "foo", sequence_number: "12345"} end)
 
       {:ok, %{next_shard_iterator: "foo", millis_behind_latest: 5_000, records: records}}
     end)
@@ -60,9 +60,11 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
 
   defp producer_opts(overrides \\ []) do
     opts = [
+      app_name: "foo",
       shard_id: "shardId-000000000000",
       stream_name: "kcl-ex-test-stream",
       kinesis_opts: [adapter: KinesisMock],
+      app_state_opts: [adapter: AppStateMock],
       status: :stopped,
       notify_pid: self()
     ]

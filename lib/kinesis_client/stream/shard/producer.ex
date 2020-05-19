@@ -5,6 +5,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   use GenStage
   require Logger
   alias KinesisClient.Kinesis
+  alias KinesisClient.Stream.AppState
   @behaviour Broadway.Producer
 
   defstruct [
@@ -18,6 +19,9 @@ defmodule KinesisClient.Stream.Shard.Producer do
     :poll_timer,
     :status,
     :notify_pid,
+    :ack_ref,
+    :app_name,
+    :app_state_opts,
     demand: 0
   ]
 
@@ -37,9 +41,11 @@ defmodule KinesisClient.Stream.Shard.Producer do
   def init(opts) do
     state = %__MODULE__{
       shard_id: opts[:shard_id],
+      app_name: opts[:app_name],
       kinesis_opts: opts[:kinesis_opts],
       stream_name: opts[:stream_name],
       status: opts[:status],
+      app_state_opts: Keyword.get(opts, :app_state_opts, []),
       shard_iterator_type: Keyword.get(opts, :shard_iterator_type, :trim_horizon),
       poll_interval: Keyword.get(opts, :poll_interval, 5_000),
       notify_pid: Keyword.get(opts, :notify_pid)
@@ -71,18 +77,103 @@ defmodule KinesisClient.Stream.Shard.Producer do
     get_records(state)
   end
 
+  @impl GenStage
+  def handle_info({:ack, _ref, successful_msgs, []}, state) do
+    %{metadata: %{sequence_number: checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
+
+    :ok =
+      AppState.update_checkpoint(
+        state.shard_id,
+        state.lease_owner,
+        checkpoint,
+        state.apps_state_opts
+      )
+
+    {:noreply, [], state}
+  end
+
+  @impl GenStage
+  def handle_info({:ack, _ref, [], failed_msgs}, state) do
+    {:noreply, failed_msgs, state}
+  end
+
+  @impl GenStage
+  def handle_info({:ack, _ref, successful_msgs, failed_msgs}, state) do
+    %{metadata: %{sequence_number: checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
+
+    :ok =
+      AppState.update_checkpoint(
+        state.shard_id,
+        state.lease_owner,
+        checkpoint,
+        state.apps_state_opts
+      )
+
+    {:noreply, failed_msgs, state}
+  end
+
+  @impl GenStage
   def handle_info(msg, state) do
     Logger.debug("ShardConsumer.Producer got an unhandled message #{inspect(msg)}")
     {:noreply, [], state}
   end
 
-  defp get_records(%__MODULE__{shard_iterator: nil, kinesis_opts: opts} = state) do
+  @impl GenStage
+  def handle_call(:start, from, state) do
+    {:noreply, records, new_state} =
+      case AppState.get_lease(state.app_name, state.shard_id, state.app_state_opts) do
+        %{checkpoint: nil} ->
+          get_records(%{
+            state
+            | status: :started,
+              shard_iterator: nil,
+              shard_iterator_type: :trim_horizon
+          })
+
+        %{checkpoint: seq_number} when is_binary(seq_number) ->
+          get_records(%{
+            state
+            | status: :started,
+              shard_iterator: nil,
+              shard_iterator_type: :after_sequence_number,
+              starting_sequence_number: seq_number
+          })
+
+        :not_found ->
+          raise "No lease has been created for #{state.app_name}-#{state.shard_id}"
+      end
+
+    {:noreply, records, new_state} = get_records(%{state | status: :started, shard_iterator: nil})
+    GenStage.reply(from, :ok)
+    {:noreply, records, new_state}
+  end
+
+  @impl GenStage
+  def handle_call(:stop, _from, state) do
+    {:reply, :ok, [], %{state | status: :stopped}}
+  end
+
+  defp get_records(%__MODULE__{shard_iterator: nil, shard_iterator_type: :trim_horizon} = state) do
     {:ok, %{shard_iterator: iterator}} =
       Kinesis.get_shard_iterator(
         state.stream_name,
         state.shard_id,
-        state.shard_iterator_type,
-        opts
+        :trim_horizon,
+        state.kinesis_opts
+      )
+
+    get_records(%{state | shard_iterator: iterator})
+  end
+
+  defp get_records(
+         %__MODULE__{shard_iterator: nil, shard_iterator_type: :after_sequence_number} = state
+       ) do
+    {:ok, %{shard_iterator: iterator}} =
+      Kinesis.get_shard_iterator(
+        state.stream_name,
+        state.shard_id,
+        :after_sequence_number,
+        Keyword.put(state.kinesis_opts, :starting_sequence_number, state.starting_sequence_number)
       )
 
     get_records(%{state | shard_iterator: iterator})
@@ -98,6 +189,8 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
     new_demand = demand - length(records)
 
+    messages = wrap_records(records)
+
     poll_timer =
       case {records, new_demand} do
         {[], _} -> schedule_shard_poll(state.poll_interval)
@@ -112,7 +205,16 @@ defmodule KinesisClient.Stream.Shard.Producer do
         shard_iterator: next_iterator
     }
 
-    {:noreply, records, new_state}
+    {:noreply, messages, new_state}
+  end
+
+  # convert Kinesis records to Broadway messages
+  defp wrap_records(records) do
+    Enum.map(records, fn %{data: data} = record ->
+      metadata = Map.delete(record, :data)
+      acknowledger = {Broadway.CallerAcknowledger, {self(), make_ref()}, nil}
+      %Broadway.Message{data: data, metadata: metadata, acknowledger: acknowledger}
+    end)
   end
 
   defp schedule_shard_poll(interval) do
