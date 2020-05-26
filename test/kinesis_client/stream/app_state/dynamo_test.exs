@@ -107,6 +107,19 @@ defmodule KinesisClient.Stream.AppState.DynamoTest do
     end
   end
 
+  describe "update_checkpoint/5" do
+    test "success", %{app_name: app_name} do
+      shard_id = random_string()
+      lease_owner = worker_ref()
+      checkpoint = "239801209190"
+
+      result = AppState.create_lease(app_name, shard_id, lease_owner, [])
+      assert result == :ok
+
+      assert :ok = AppState.update_checkpoint(app_name, shard_id, lease_owner, checkpoint, [])
+    end
+  end
+
   defp confirm_table_created(app_name, attempts \\ 1) do
     case Dynamo.describe_table(app_name) |> ExAws.request() do
       {:ok, %{"Table" => %{"TableStatus" => "CREATING"}}} ->

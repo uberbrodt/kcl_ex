@@ -82,6 +82,25 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
     end
   end
 
+  @impl AppStateAdapter
+  def update_checkpoint(app_name, shard_id, lease_owner, checkpoint, _opts) do
+    update_opt = [
+      condition_expression: "lease_owner = :lo",
+      expression_attribute_values: %{
+        lo: lease_owner,
+        checkpoint_num: checkpoint
+      },
+      update_expression: "SET checkpoint = :checkpoint_num",
+      return_values: "UPDATED_NEW"
+    ]
+
+    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt) |> ExAws.request() do
+      {:ok, %{"Attributes" => %{"checkpoint" => %{"S" => ^checkpoint}}}} -> :ok
+      {:error, {"ConditionalCheckFailedException", _}} -> {:error, :lease_owner_match}
+      reply -> reply
+    end
+  end
+
   defp decode_item(item) do
     item
     |> Dynamo.decode_item(as: KinesisClient.Stream.AppState.ShardLease)
