@@ -3,6 +3,7 @@ defmodule KinesisClient.Stream do
   This is the entry point for processing the shards of a Kinesis Data Stream.
   """
   use Supervisor
+  require Logger
   import KinesisClient.Util
   alias KinesisClient.Stream.Coordinator
 
@@ -38,6 +39,7 @@ defmodule KinesisClient.Stream do
     shard_args = [
       app_name: opts[:app_name],
       coordinator_name: coordinator_name,
+      stream_name: stream_name,
       lease_owner: worker_ref,
       shard_consumer: shard_consumer
     ]
@@ -62,6 +64,10 @@ defmodule KinesisClient.Stream do
       shard_supervisor_spec,
       {Coordinator, coordinator_args}
     ]
+
+    Logger.debug(
+      "Starting KinesisClient.Stream: [app_name: #{app_name}, stream_name: {stream_name}]"
+    )
 
     Supervisor.init(children, strategy: :one_for_all)
   end

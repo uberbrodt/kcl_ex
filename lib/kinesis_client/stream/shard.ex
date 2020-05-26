@@ -19,7 +19,9 @@ defmodule KinesisClient.Stream.Shard do
     pipeline_opts = [
       app_name: opts[:app_name],
       shard_id: opts[:shard_id],
-      lease_owner: opts[:lease_owner]
+      lease_owner: opts[:lease_owner],
+      stream_name: opts[:stream_name],
+      shard_consumer: opts[:shard_consumer]
     ]
 
     lease_opts =
@@ -33,7 +35,7 @@ defmodule KinesisClient.Stream.Shard do
       {Pipeline, pipeline_opts}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_all)
   end
 
   def start(supervisor, shard_info) do

@@ -4,8 +4,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
   use GenServer, restart: :temporary
   alias KinesisClient.Stream.AppState
   alias KinesisClient.Stream.AppState.ShardLease
-
-  # alias KinesisClient.Stream.Shard.Processor
+  alias KinesisClient.Stream.Shard.Pipeline
 
   @default_renew_interval 30_000
   # The amount of time that must have elapsed since the least_count was incremented in order to
@@ -49,6 +48,8 @@ defmodule KinesisClient.Stream.Shard.Lease do
 
     Process.send_after(self(), :take_or_renew_lease, state.renew_interval)
 
+    Logger.debug("Starting KinesisClient.Stream.Lease: #{inspect(state)}")
+
     {:ok, state, {:continue, :initialize}}
   end
 
@@ -57,6 +58,11 @@ defmodule KinesisClient.Stream.Shard.Lease do
     new_state =
       case get_lease(state) do
         :not_found ->
+          Logger.debug(
+            "No existing lease record found in AppState: " <>
+              "[app_name: #{state.app_name}, shard_id: #{state.shard_id}]"
+          )
+
           create_lease(state)
 
         %ShardLease{} = s ->
@@ -64,7 +70,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
       end
 
     if new_state.lease_owner == true do
-      # TODO: start processing stream if this process has taken or created the lease.
+      :ok = Pipeline.start(state.app_name, state.shard_id)
     end
 
     notify({:initialized, new_state}, state)
@@ -108,6 +114,11 @@ defmodule KinesisClient.Stream.Shard.Lease do
               %{state | lease_holder: false}
           end
 
+        Logger.debug(
+          "Lease is owned by another node, and could not be taken: [shard_id: #{state.shard_id}, " <>
+            "lease_owner: #{state.lease_owner}, lease_count: #{state.lease_count}]"
+        )
+
         notify({:tracking_lease, state}, state)
         state
     end
@@ -128,6 +139,11 @@ defmodule KinesisClient.Stream.Shard.Lease do
 
   @spec create_lease(state :: t()) :: t()
   defp create_lease(%{app_state_opts: opts, app_name: app_name, lease_owner: lease_owner} = state) do
+    Logger.debug(
+      "Creating lease: [app_name: #{app_name}, shard_id: #{state.shard_id}, lease_owner: " <>
+        "#{lease_owner}]"
+    )
+
     case AppState.create_lease(app_name, state.shard_id, lease_owner, opts) do
       :ok -> %{state | lease_holder: true, lease_count: 1}
       :already_exists -> %{state | lease_holder: false}
@@ -138,6 +154,11 @@ defmodule KinesisClient.Stream.Shard.Lease do
   defp renew_lease(shard_lease, %{app_state_opts: opts, app_name: app_name} = state) do
     expected = shard_lease.lease_count + 1
 
+    Logger.debug(
+      "Renewing lease: [app_name: #{app_name}, shard_id: #{state.shard_id}, lease_owner: " <>
+        "#{state.lease_owner}]"
+    )
+
     case AppState.renew_lease(app_name, shard_lease, opts) do
       {:ok, ^expected} ->
         state = set_lease_count(expected, true, state)
@@ -145,8 +166,12 @@ defmodule KinesisClient.Stream.Shard.Lease do
         state
 
       :lease_renew_failed ->
-        # TODO
-        # :ok = Processor.ensure_halted(state)
+        Logger.debug(
+          "Failed to renew lease, stopping producer: [app_name: #{app_name}, " <>
+            "shard_id: #{state.shard_id}, lease_owner: #{state.lease_owner}]"
+        )
+
+        :ok = Pipeline.stop(app_name, state.shard_id)
         %{state | lease_holder: false, lease_count_increment_time: current_time()}
 
       {:error, e} ->
@@ -158,6 +183,10 @@ defmodule KinesisClient.Stream.Shard.Lease do
   defp take_lease(shard_lease, %{app_state_opts: opts, app_name: app_name} = state) do
     expected = state.lease_count + 1
 
+    Logger.debug(
+      "Attempting to take lease: [lease_owner: #{state.lease_owner}, shard_id: #{state.shard_id}]"
+    )
+
     case AppState.take_lease(app_name, state.shard_id, state.lease_owner, state.lease_count, opts) do
       {:ok, ^expected} ->
         state = %{
@@ -168,8 +197,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
         }
 
         notify({:lease_taken, state}, state)
-        # TODO
-        # :ok = Processor.ensure_started(state)
+        :ok = Pipeline.start(app_name, state.shard_id)
         state
 
       :lease_take_failed ->

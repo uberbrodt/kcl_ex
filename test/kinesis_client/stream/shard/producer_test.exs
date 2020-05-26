@@ -10,14 +10,14 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
 
     KinesisMock
     |> expect(:get_shard_iterator, fn _, _, _, _ ->
-      {:ok, %{shard_iterator: "somesharditerator"}}
+      {:ok, %{"ShardIterator" => "somesharditerator"}}
     end)
     |> expect(:get_records, fn _, _ ->
       records = [
-        %{data: "foo", sequence_number: "12345"}
+        %{"Data" => "foo", "SequenceNumber" => "12345"}
       ]
 
-      {:ok, %{next_shard_iterator: "foo", millis_behind_latest: 5_000, records: records}}
+      {:ok, %{"NextShardIterator" => "foo", "MillisBehindLatest" => 5_000, "Records" => records}}
     end)
 
     GenStage.sync_subscribe(consumer, to: producer)
@@ -44,13 +44,13 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
 
     KinesisMock
     |> expect(:get_shard_iterator, fn _, _, _, _ ->
-      {:ok, %{shard_iterator: "somesharditerator"}}
+      {:ok, %{"ShardIterator" => "somesharditerator"}}
     end)
     |> expect(:get_records, fn _, opts ->
       count = opts[:limit] - 5
-      records = Enum.map(0..count, fn _ -> %{data: "foo", sequence_number: "12345"} end)
+      records = Enum.map(0..count, fn _ -> %{"Data" => "foo", "SequenceNumber" => "12345"} end)
 
-      {:ok, %{next_shard_iterator: "foo", millis_behind_latest: 5_000, records: records}}
+      {:ok, %{"NextShardIterator" => "foo", "MillisBehindLatest" => 5_000, "Records" => records}}
     end)
 
     GenStage.sync_subscribe(consumer, to: producer, max_demand: 10, min_demand: 0)
@@ -65,13 +65,13 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
 
     KinesisMock
     |> expect(:get_shard_iterator, fn _, _, _, _ ->
-      {:ok, %{shard_iterator: "somesharditerator"}}
+      {:ok, %{"ShardIterator" => "somesharditerator"}}
     end)
     |> expect(:get_records, fn _, opts ->
       count = opts[:limit] - 5
-      records = Enum.map(0..count, fn _ -> %{data: "foo", sequence_number: "12345"} end)
+      records = Enum.map(0..count, fn _ -> %{"Data" => "foo", "SequenceNumber" => "12345"} end)
 
-      {:ok, %{next_shard_iterator: "foo", millis_behind_latest: 5_000, records: records}}
+      {:ok, %{"NextShardIterator" => "foo", "MillisBehindLatest" => 5_000, "Records" => records}}
     end)
 
     AppStateMock

@@ -1,3 +1,56 @@
+defmodule ReplTest do
+  def start do
+    opts = [
+      stream_name: "kcl-ex-test-stream",
+      app_name: "cbrodt-test-app",
+      shard_consumer: ReplTestShardConsumer
+    ]
+
+    KinesisClient.Stream.start_link(opts)
+  end
+
+  def use_localstack_services do
+    Application.put_env(:ex_aws, :dynamodb,
+      scheme: "http://",
+      host: "localhost",
+      port: "4569",
+      region: "us-east-1"
+    )
+
+    Application.put_env(:ex_aws, :kinesis,
+      scheme: "http://",
+      host: "localhost",
+      port: "4568",
+      region: "us-east-1"
+    )
+  end
+end
+
+defmodule ReplTestShardConsumer do
+  @behaviour Broadway
+  require Logger
+
+  @impl Broadway
+  def handle_message(_processor, %{data: data, metadata: metadata} = msg, _context) do
+    %{id: id} = data |> Base.decode64!() |> Jason.decode!(keys: :atoms)
+    Logger.info("Got message #{id}")
+    path = Path.join("repl_output", "#{id}.json")
+    :ok = File.write(path, Jason.encode!(%{data: data, metadata: metadata}))
+    Logger.info("processing message with id: #{id}")
+    msg
+  end
+
+  @impl Broadway
+  def handle_batch(_batcher, messages, _batch_info, _context) do
+    messages
+  end
+
+  @impl Broadway
+  def handle_failed(messages, _context) do
+    messages
+  end
+end
+
 defmodule CBDevTesting do
   alias ExAws.Kinesis
   @coordinator_name MyTestCoordinator
@@ -25,6 +78,10 @@ defmodule CBDevTesting do
     Kinesis.describe_stream(stream_name) |> ExAws.request()
   end
 
+  def describe_table(table_name) do
+    ExAws.Dynamo.describe_table(table_name) |> ExAws.request()
+  end
+
   def list_streams do
     Kinesis.list_streams() |> ExAws.request()
   end
@@ -37,7 +94,7 @@ defmodule CBDevTesting do
     "decline-roman-empire-dev"
   end
 
-  def start_coordinator(overrides) do
+  def start_coordinator(_overrides) do
     opts = [
       name: @coordinator_name,
       app_name: "uberbrodt-kinesis-client-dev-app",

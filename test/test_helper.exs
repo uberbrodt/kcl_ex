@@ -15,4 +15,6 @@ Application.put_env(:ex_aws, :kinesis,
   region: "us-east-1"
 )
 
+Logger.configure(level: :info)
+
 ExUnit.start()

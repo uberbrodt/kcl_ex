@@ -22,16 +22,16 @@ defmodule KinesisClient.Stream.Shard.PipelineTest do
       assert in_stream_name == opts[:stream_name]
       assert in_shard_id == opts[:shard_id]
       assert in_shard_iterator_type == :trim_horizon
-      {:ok, %{shard_iterator: "foo"}}
+      {:ok, %{"ShardIterator" => "foo"}}
     end)
     |> stub(:get_records, fn iterator, _opts ->
       assert iterator != nil
 
       {:ok,
        %{
-         next_shard_iterator: "bar",
-         millis_behind_latest: 100,
-         records: [%{data: "", partition_key: "3qwc3", sequence_number: "12345"}]
+         "NextShardIterator" => "bar",
+         "MillisBehindLatest" => 100,
+         "Records" => [%{"Data" => "", "PartitionKey" => "3qwc3", "SequenceNumber" => "12345"}]
        }}
     end)
 

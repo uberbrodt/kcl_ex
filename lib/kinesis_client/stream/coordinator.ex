@@ -55,6 +55,7 @@ defmodule KinesisClient.Stream.Coordinator do
       retry_timeout: Keyword.get(opts, :retry_timeout, 30_000)
     }
 
+    Logger.debug("Starting KinesisClient.Stream.Coordinates: #{inspect(state)}")
     {:ok, state, {:continue, :initialize}}
   end
 

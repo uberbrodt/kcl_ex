@@ -53,6 +53,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
       notify_pid: Keyword.get(opts, :notify_pid)
     }
 
+    Logger.debug("Starting KinesisClient.Stream.Shard.Producer: #{inspect(state)}")
     {:producer, state}
   end
 
@@ -81,7 +82,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
   @impl GenStage
   def handle_info({:ack, _ref, successful_msgs, []}, state) do
-    %{metadata: %{sequence_number: checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
+    %{metadata: %{"SequenceNumber" => checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
 
     :ok =
       AppState.update_checkpoint(
@@ -158,7 +159,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   end
 
   defp get_records(%__MODULE__{shard_iterator: nil, shard_iterator_type: :trim_horizon} = state) do
-    {:ok, %{shard_iterator: iterator}} =
+    {:ok, %{"ShardIterator" => iterator}} =
       Kinesis.get_shard_iterator(
         state.stream_name,
         state.shard_id,
@@ -172,7 +173,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   defp get_records(
          %__MODULE__{shard_iterator: nil, shard_iterator_type: :after_sequence_number} = state
        ) do
-    {:ok, %{shard_iterator: iterator}} =
+    {:ok, %{"ShardIterator" => iterator}} =
       Kinesis.get_shard_iterator(
         state.stream_name,
         state.shard_id,
@@ -186,9 +187,9 @@ defmodule KinesisClient.Stream.Shard.Producer do
   defp get_records(%__MODULE__{demand: demand, kinesis_opts: kinesis_opts} = state) do
     {:ok,
      %{
-       next_shard_iterator: next_iterator,
-       millis_behind_latest: _millis_behind_latest,
-       records: records
+       "NextShardIterator" => next_iterator,
+       "MillisBehindLatest" => _millis_behind_latest,
+       "Records" => records
      }} = Kinesis.get_records(state.shard_iterator, Keyword.merge(kinesis_opts, limit: demand))
 
     new_demand = demand - length(records)
@@ -214,8 +215,8 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
   # convert Kinesis records to Broadway messages
   defp wrap_records(records) do
-    Enum.map(records, fn %{data: data} = record ->
-      metadata = Map.delete(record, :data)
+    Enum.map(records, fn %{"Data" => data} = record ->
+      metadata = Map.delete(record, "Data")
       acknowledger = {Broadway.CallerAcknowledger, {self(), make_ref()}, nil}
       %Broadway.Message{data: data, metadata: metadata, acknowledger: acknowledger}
     end)
