@@ -101,6 +101,25 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
     end
   end
 
+  @impl AppStateAdapter
+  def close_shard(app_name, shard_id, lease_owner, _opts) do
+    update_opt = [
+      condition_expression: "lease_owner = :lo",
+      expression_attribute_values: %{
+        lo: lease_owner,
+        completed_v: true
+      },
+      update_expression: "SET completed = :completed_v",
+      return_values: "UPDATED_NEW"
+    ]
+
+    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt) |> ExAws.request() do
+      {:ok, %{"Attributes" => %{"completed" => %{"BOOL" => true}}}} -> :ok
+      {:error, {"ConditionalCheckFailedException", _}} -> {:error, :lease_owner_match}
+      reply -> reply
+    end
+  end
+
   defp decode_item(item) do
     item
     |> Dynamo.decode_item(as: KinesisClient.Stream.AppState.ShardLease)

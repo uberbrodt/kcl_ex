@@ -13,14 +13,20 @@ defmodule KinesisClient.Stream.Shard.PipelineTest do
       app_state_opts: [adapter: AppStateMock],
       shard_id: shard_id,
       kinesis_opts: [adapter: KinesisMock],
-      shard_consumer: KinesisClient.TestShardConsumer
+      shard_consumer: KinesisClient.TestShardConsumer,
+      stream_name: "pipeline-test-stream"
     ]
 
     KinesisMock
     |> expect(:get_shard_iterator, fn in_stream_name, in_shard_id, in_shard_iterator_type, _ ->
+      assert in_stream_name == opts[:stream_name]
+      assert in_shard_id == opts[:shard_id]
+      assert in_shard_iterator_type == :trim_horizon
       {:ok, %{shard_iterator: "foo"}}
     end)
     |> stub(:get_records, fn iterator, _opts ->
+      assert iterator != nil
+
       {:ok,
        %{
          next_shard_iterator: "bar",

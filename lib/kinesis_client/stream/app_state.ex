@@ -37,7 +37,10 @@ defmodule KinesisClient.Stream.AppState do
     do: adapter(opts).take_lease(app_name, shard_id, new_owner, lease_count, opts)
 
   @doc """
-  Marks a shard as CLOSED. This indicates that all records have been processed by the app.
+  Marks a ShardLease as completed.
+
+  This indicates that all records for the shard have been processed by the app. `KinesisClient.Stream.Shard`
+  processes will not be started for ShardLease's that are completed.
   """
   def close_shard(shard_id, opts \\ []), do: adapter(opts).close_shard(shard_id, opts)
 

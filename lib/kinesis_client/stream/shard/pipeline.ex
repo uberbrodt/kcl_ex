@@ -8,9 +8,8 @@ defmodule KinesisClient.Stream.Shard.Pipeline do
     producer_opts = [
       app_name: opts[:app_name],
       shard_id: opts[:shard_id],
-      shard_iterator_type: opts[:shard_iterator_type],
-      starting_sequence_number: Keyword.get(opts, :sequence_number),
-      timestamp: opts[:shard_timestamp],
+      lease_owner: opts[:lease_owner],
+      stream_name: opts[:stream_name],
       kinesis_opts: Keyword.get(opts, :kinesis_opts, []),
       app_state_opts: Keyword.get(opts, :app_state_opts, []),
       status: :stopped

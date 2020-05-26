@@ -35,5 +35,11 @@ defmodule KinesisClient.Stream.AppState.Adapter do
             ) ::
               {:ok, new_lease_count :: integer} | :lease_take_failed | {:error, any}
 
-  @callback close_shard(shard_id :: String.t(), opts :: keyword) :: :ok | {:error, any}
+  @callback close_shard(
+              app_name :: String.t(),
+              shard_id :: String.t(),
+              lease_owner :: String.t(),
+              opts :: keyword
+            ) ::
+              :ok | {:error, any}
 end

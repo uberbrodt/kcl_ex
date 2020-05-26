@@ -22,6 +22,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
     :ack_ref,
     :app_name,
     :app_state_opts,
+    :lease_owner,
     demand: 0
   ]
 
@@ -42,6 +43,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
     state = %__MODULE__{
       shard_id: opts[:shard_id],
       app_name: opts[:app_name],
+      lease_owner: opts[:lease_owner],
       kinesis_opts: opts[:kinesis_opts],
       stream_name: opts[:stream_name],
       status: opts[:status],
@@ -83,11 +85,14 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
     :ok =
       AppState.update_checkpoint(
+        state.app_name,
         state.shard_id,
         state.lease_owner,
         checkpoint,
-        state.apps_state_opts
+        state.app_state_opts
       )
+
+    notify({:acked, %{checkpoint: checkpoint, success: successful_msgs, failed: []}}, state)
 
     {:noreply, [], state}
   end
@@ -106,7 +111,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
         state.shard_id,
         state.lease_owner,
         checkpoint,
-        state.apps_state_opts
+        state.app_state_opts
       )
 
     {:noreply, failed_msgs, state}
@@ -143,7 +148,6 @@ defmodule KinesisClient.Stream.Shard.Producer do
           raise "No lease has been created for #{state.app_name}-#{state.shard_id}"
       end
 
-    {:noreply, records, new_state} = get_records(%{state | status: :started, shard_iterator: nil})
     GenStage.reply(from, :ok)
     {:noreply, records, new_state}
   end

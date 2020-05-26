@@ -120,6 +120,18 @@ defmodule KinesisClient.Stream.AppState.DynamoTest do
     end
   end
 
+  describe "close_shard/4" do
+    test "success", %{app_name: app_name} do
+      shard_id = random_string()
+      lease_owner = worker_ref()
+
+      result = AppState.create_lease(app_name, shard_id, lease_owner, [])
+      assert result == :ok
+
+      assert :ok = AppState.close_shard(app_name, shard_id, lease_owner, [])
+    end
+  end
+
   defp confirm_table_created(app_name, attempts \\ 1) do
     case Dynamo.describe_table(app_name) |> ExAws.request() do
       {:ok, %{"Table" => %{"TableStatus" => "CREATING"}}} ->
