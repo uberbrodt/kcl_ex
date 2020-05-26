@@ -7,6 +7,37 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
   @behaviour AppStateAdapter
 
   @impl AppStateAdapter
+  def initialize(app_name, _opts) do
+    case confirm_table_created(app_name) do
+      :ok -> :ok
+      {:error, {"ResourceNotFoundException", _}} -> create_table(app_name)
+    end
+  end
+
+  defp create_table(app_name) do
+    case Dynamo.create_table(app_name, "shard_id", %{shard_id: :string}, 10, 10)
+         |> ExAws.request() do
+      {:ok, %{}} -> confirm_table_created(app_name)
+    end
+  end
+
+  defp confirm_table_created(app_name, attempts \\ 1) do
+    case Dynamo.describe_table(app_name) |> ExAws.request() do
+      {:ok, %{"Table" => %{"TableStatus" => "CREATING"}}} ->
+        case attempts do
+          x when x <= 5 -> confirm_table_created(app_name, attempts + 1)
+          _ -> raise "could not create dynamodb table!"
+        end
+
+      {:ok, _x} ->
+        :ok
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @impl AppStateAdapter
   def create_lease(app_name, shard_id, lease_owner, _opts \\ []) do
     update_opt = [condition_expression: "attribute_not_exists(shard_id)"]
 

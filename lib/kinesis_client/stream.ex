@@ -52,6 +52,7 @@ defmodule KinesisClient.Stream do
       name: coordinator_name,
       stream_name: stream_name,
       app_name: app_name,
+      app_state_opts: Keyword.get(opts, :app_state_opts, []),
       shard_supervisor_name: shard_supervisor_name,
       worker_ref: worker_ref,
       shard_args: shard_args

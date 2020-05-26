@@ -23,6 +23,10 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     end)
 
     AppStateMock
+    |> expect(:initialize, fn in_app_name, _ ->
+      assert in_app_name == opts[:app_name]
+      :ok
+    end)
     |> stub(:get_lease, fn _, _, _ ->
       :not_found
     end)
@@ -56,6 +60,10 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     end)
 
     AppStateMock
+    |> expect(:initialize, fn in_app_name, _ ->
+      assert in_app_name == opts[:app_name]
+      :ok
+    end)
     |> stub(:get_lease, fn _, _, _ ->
       :not_found
     end)
@@ -84,6 +92,10 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     end)
 
     AppStateMock
+    |> expect(:initialize, fn in_app_name, _ ->
+      assert in_app_name == opts[:app_name]
+      :ok
+    end)
     |> stub(:get_lease, fn _, _, _ ->
       :not_found
     end)
@@ -114,6 +126,10 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     end)
 
     AppStateMock
+    |> expect(:initialize, fn in_app_name, _ ->
+      assert in_app_name == opts[:app_name]
+      :ok
+    end)
     |> stub(:get_lease, fn _, _, _ ->
       :not_found
     end)
@@ -134,6 +150,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     opts = [
       name: coordinator_name,
       app_name: app_name,
+      app_state_opts: [adapter: AppStateMock],
       stream_name: @stream_name,
       shard_supervisor_name: @supervisor_name,
       notify_pid: self(),

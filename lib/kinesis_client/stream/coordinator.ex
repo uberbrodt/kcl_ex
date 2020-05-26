@@ -8,10 +8,12 @@ defmodule KinesisClient.Stream.Coordinator do
   require Logger
   alias KinesisClient.Kinesis
   alias KinesisClient.Stream.Shard
+  alias KinesisClient.Stream.AppState
 
   defstruct [
     :name,
     :app_name,
+    :app_state_opts,
     :stream_name,
     :shard_supervisor_name,
     :notify_pid,
@@ -43,6 +45,7 @@ defmodule KinesisClient.Stream.Coordinator do
     state = %__MODULE__{
       name: opts[:name],
       app_name: opts[:app_name],
+      app_state_opts: opts[:app_state_opts],
       stream_name: opts[:stream_name],
       shard_supervisor_name: opts[:shard_supervisor_name],
       worker_ref: opts[:worker_ref],
@@ -57,6 +60,7 @@ defmodule KinesisClient.Stream.Coordinator do
 
   @impl GenServer
   def handle_continue(:initialize, state) do
+    create_table_if_not_exists(state)
     describe_stream(state)
   end
 
@@ -67,6 +71,10 @@ defmodule KinesisClient.Stream.Coordinator do
   @impl GenServer
   def handle_call(:get_graph, _from, %{shard_graph: graph} = s) do
     {:reply, graph, s}
+  end
+
+  def create_table_if_not_exists(state) do
+    AppState.initialize(state.app_name, state.app_state_opts)
   end
 
   defp describe_stream(state) do

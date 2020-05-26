@@ -3,6 +3,12 @@ defmodule KinesisClient.Stream.AppState.Adapter do
 
   alias KinesisClient.Stream.AppState.ShardLease
 
+  @doc """
+  Implement to setup any backend storage. Should not clear data as this will be called everytime a
+  `KinesisClient.Stream.Coordinator` process is started.
+  """
+  @callback initialize(app_name :: String.t(), opts :: keyword) :: :ok | {:error, any}
+
   @callback get_lease(app_name :: String.t(), shard_id :: String.t(), opts :: keyword) ::
               ShardLease.t() | :not_found | {:error, any}
 

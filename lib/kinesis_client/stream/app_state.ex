@@ -4,7 +4,9 @@ defmodule KinesisClient.Stream.AppState do
   checkpoint the records, and the `KinesisClient.Stream.Coordinator` will check here to determine
   what shards to consume.
   """
-  alias KinesisClient.Stream.AppState.Adapter
+
+  def initialize(app_name, opts \\ []),
+    do: adapter(opts).initialize(app_name, opts)
 
   @doc """
   Get a `KinesisClient.Stream.AppState.ShardInfo` struct by shard_id. If there is not an existing

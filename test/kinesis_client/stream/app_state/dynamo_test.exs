@@ -15,6 +15,18 @@ defmodule KinesisClient.Stream.AppState.DynamoTest do
     %{app_name: app_name}
   end
 
+  describe "initialize/2" do
+    test "creates a new table successfully" do
+      app_name = "foo_app_#{random_string()}"
+
+      assert :ok = AppState.initialize(app_name, [])
+    end
+
+    test "passes if table already created", %{app_name: app_name} do
+      assert :ok = AppState.initialize(app_name, [])
+    end
+  end
+
   describe "create_lease/3" do
     test "lease created and :ok returned if no record for shard exists", %{app_name: app_name} do
       result = AppState.create_lease(app_name, random_string(), worker_ref(), [])
