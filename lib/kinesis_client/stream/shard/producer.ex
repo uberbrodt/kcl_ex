@@ -159,29 +159,33 @@ defmodule KinesisClient.Stream.Shard.Producer do
   end
 
   defp get_records(%__MODULE__{shard_iterator: nil, shard_iterator_type: :trim_horizon} = state) do
-    {:ok, %{"ShardIterator" => iterator}} =
-      Kinesis.get_shard_iterator(
-        state.stream_name,
-        state.shard_id,
-        :trim_horizon,
-        state.kinesis_opts
-      )
-
-    get_records(%{state | shard_iterator: iterator})
+    case Kinesis.get_shard_iterator(
+           state.stream_name,
+           state.shard_id,
+           :trim_horizon,
+           state.kinesis_opts
+         ) do
+      {:ok, %{"ShardIterator" => nil}} -> {:stop, {:shutdown, :shard_closed}, state}
+      {:ok, %{"ShardIterator" => iterator}} -> get_records(%{state | shard_iterator: iterator})
+    end
   end
 
   defp get_records(
          %__MODULE__{shard_iterator: nil, shard_iterator_type: :after_sequence_number} = state
        ) do
-    {:ok, %{"ShardIterator" => iterator}} =
-      Kinesis.get_shard_iterator(
-        state.stream_name,
-        state.shard_id,
-        :after_sequence_number,
-        Keyword.put(state.kinesis_opts, :starting_sequence_number, state.starting_sequence_number)
-      )
-
-    get_records(%{state | shard_iterator: iterator})
+    case Kinesis.get_shard_iterator(
+           state.stream_name,
+           state.shard_id,
+           :after_sequence_number,
+           Keyword.put(
+             state.kinesis_opts,
+             :starting_sequence_number,
+             state.starting_sequence_number
+           )
+         ) do
+      {:ok, %{"ShardIterator" => nil}} -> {:stop, {:shutdown, :shard_closed}, state}
+      {:ok, %{"ShardIterator" => iterator}} -> get_records(%{state | shard_iterator: iterator})
+    end
   end
 
   defp get_records(%__MODULE__{demand: demand, kinesis_opts: kinesis_opts} = state) do

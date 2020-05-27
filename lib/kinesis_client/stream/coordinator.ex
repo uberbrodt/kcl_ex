@@ -148,23 +148,35 @@ defmodule KinesisClient.Stream.Coordinator do
             {:ok, pid} -> Map.put(acc, Process.monitor(pid), shard_id)
           end
 
-          # TODO: handle shard splits
-          # [single_parent] ->
-          #   case AppState.get_shard(single_parent) do
-          #     %{closed: true} -> start_shard(shard_id, state)
-          #     # TODO: handle error getting app state
-          #     %{closed: false} -> wm
-          #   end
+        # handle shard splits
+        [single_parent] ->
+          case get_lease(single_parent, state) do
+            %{completed: true} ->
+              case start_shard(shard_id, state) do
+                {:ok, pid} -> Map.put(acc, Process.monitor(pid), shard_id)
+              end
 
-          # TODO: handle shard merges
-          # [parent1, parent2] ->
-          #   case {AppState.get_shard(parent1), AppState.get_shard(parent2)} do
-          #     {%{closed: true}, %{closed: true}} -> start_shard(shard_id, state)
-          #     # TODO: handle error getting app state
-          #     {{:error, _}, {:error, _}} -> raise "error getting app state"
-          #   end
+            %{completed: false} ->
+              acc
+          end
+
+        # handle shard merges
+        [parent1, parent2] ->
+          case {get_lease(parent1, state), get_lease(parent2, state)} do
+            {%{completed: true}, %{completed: true}} ->
+              case start_shard(shard_id, state) do
+                {:ok, pid} -> Map.put(acc, Process.monitor(pid), shard_id)
+              end
+
+            _ ->
+              acc
+          end
       end
     end)
+  end
+
+  defp get_lease(shard_id, %{app_name: app_name, app_state_opts: app_state_opts}) do
+    AppState.get_lease(app_name, shard_id, app_state_opts)
   end
 
   # Start a shard and return an updated worker map with the %{lease_ref => pid}
