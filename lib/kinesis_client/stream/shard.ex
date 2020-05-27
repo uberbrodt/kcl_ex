@@ -21,7 +21,9 @@ defmodule KinesisClient.Stream.Shard do
       shard_id: opts[:shard_id],
       lease_owner: opts[:lease_owner],
       stream_name: opts[:stream_name],
-      shard_consumer: opts[:shard_consumer]
+      shard_consumer: opts[:shard_consumer],
+      processors: opts[:processors],
+      batchers: opts[:batchers]
     ]
 
     lease_opts =

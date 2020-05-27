@@ -41,7 +41,9 @@ defmodule KinesisClient.Stream do
       coordinator_name: coordinator_name,
       stream_name: stream_name,
       lease_owner: worker_ref,
-      shard_consumer: shard_consumer
+      shard_consumer: shard_consumer,
+      processors: opts[:processors],
+      batchers: opts[:batchers]
     ]
 
     shard_args =

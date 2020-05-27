@@ -3,6 +3,7 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
   alias KinesisClient.Stream.AppState.Adapter, as: AppStateAdapter
   alias KinesisClient.Stream.AppState.ShardLease
   alias ExAws.Dynamo
+  require Logger
 
   @behaviour AppStateAdapter
 
@@ -115,6 +116,10 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
 
   @impl AppStateAdapter
   def update_checkpoint(app_name, shard_id, lease_owner, checkpoint, _opts) do
+    Logger.debug(
+      "AppState.Dynamo updating checkpoint: [checkpoint: #{checkpoint}, shard_id: {shard_id}]"
+    )
+
     update_opt = [
       condition_expression: "lease_owner = :lo",
       expression_attribute_values: %{

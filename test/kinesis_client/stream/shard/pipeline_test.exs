@@ -1,5 +1,5 @@
 defmodule KinesisClient.Stream.Shard.PipelineTest do
-  use KinesisClient.Case
+  use KinesisClient.Case, async: false
 
   alias KinesisClient.Stream.Shard.Pipeline
   alias KinesisClient.Stream.AppState.ShardLease
@@ -14,11 +14,25 @@ defmodule KinesisClient.Stream.Shard.PipelineTest do
       shard_id: shard_id,
       kinesis_opts: [adapter: KinesisMock],
       shard_consumer: KinesisClient.TestShardConsumer,
-      stream_name: "pipeline-test-stream"
+      stream_name: "pipeline-test-stream",
+      poll_interval: 60_000,
+      processors: [
+        default: [
+          concurrency: 1,
+          min_demand: 10,
+          max_demand: 20
+        ]
+      ],
+      batchers: [
+        default: [
+          concurrency: 1,
+          batch_size: 40
+        ]
+      ]
     ]
 
     KinesisMock
-    |> expect(:get_shard_iterator, fn in_stream_name, in_shard_id, in_shard_iterator_type, _ ->
+    |> stub(:get_shard_iterator, fn in_stream_name, in_shard_id, in_shard_iterator_type, _ ->
       assert in_stream_name == opts[:stream_name]
       assert in_shard_id == opts[:shard_id]
       assert in_shard_iterator_type == :trim_horizon
@@ -29,9 +43,12 @@ defmodule KinesisClient.Stream.Shard.PipelineTest do
 
       {:ok,
        %{
-         "NextShardIterator" => "bar",
+         "NextShardIterator" => "foo",
          "MillisBehindLatest" => 100,
-         "Records" => [%{"Data" => "", "PartitionKey" => "3qwc3", "SequenceNumber" => "12345"}]
+         "Records" =>
+           Enum.map(0..19, fn _ ->
+             %{"Data" => "", "PartitionKey" => "3qwc3", "SequenceNumber" => "12345"}
+           end)
        }}
     end)
 

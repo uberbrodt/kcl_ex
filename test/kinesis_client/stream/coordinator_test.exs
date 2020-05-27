@@ -159,7 +159,20 @@ defmodule KinesisClient.Stream.CoordinatorTest do
         app_name: app_name,
         coordinator_name: coordinator_name,
         lease_owner: worker_ref(),
-        app_state_opts: [adapter: AppStateMock]
+        app_state_opts: [adapter: AppStateMock],
+        processors: [
+          default: [
+            concurrency: 1,
+            min_demand: 10,
+            max_demand: 20
+          ]
+        ],
+        batchers: [
+          default: [
+            concurrency: 1,
+            batch_size: 40
+          ]
+        ]
       ]
     ]
 

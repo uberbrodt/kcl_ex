@@ -23,6 +23,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
     :app_name,
     :app_state_opts,
     :lease_owner,
+    :shard_closed_at,
     demand: 0
   ]
 
@@ -61,23 +62,38 @@ defmodule KinesisClient.Stream.Shard.Producer do
   @impl GenStage
   def handle_demand(incoming_demand, %{demand: demand, status: :stopped} = state) do
     notify({:queuing_demand_while_stopped, incoming_demand}, state)
+
+    {:noreply, [], %{state | demand: demand + incoming_demand}}
+  end
+
+  @impl GenStage
+  def handle_demand(incoming_demand, %{demand: demand, status: :closed} = state) do
+    Logger.info("Shard is closed, not storing demand")
     {:noreply, [], %{state | demand: demand + incoming_demand}}
   end
 
   @impl GenStage
   def handle_demand(incoming_demand, %{demand: demand} = state) do
+    Logger.debug("Received incoming demand: #{incoming_demand}")
     get_records(%{state | demand: demand + incoming_demand})
   end
 
   @impl GenStage
   def handle_info(:get_records, %{poll_timer: nil} = state) do
+    Logger.debug("Poll timer is nil")
     {:noreply, [], state}
   end
 
   @impl GenStage
   def handle_info(:get_records, state) do
     notify(:poll_timer_executed, state)
-    get_records(state)
+
+    Logger.debug(
+      "Try to fulfill pending demand #{state.demand}: " <>
+        "[app_name: #{state.app_name}, shard_id: #{state.shard_id}]"
+    )
+
+    get_records(%{state | poll_timer: nil})
   end
 
   @impl GenStage
@@ -95,11 +111,14 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
     notify({:acked, %{checkpoint: checkpoint, success: successful_msgs, failed: []}}, state)
 
+    Logger.debug("Acknowledged #{length(successful_msgs)} messages")
+
     {:noreply, [], state}
   end
 
   @impl GenStage
   def handle_info({:ack, _ref, [], failed_msgs}, state) do
+    Logger.debug("Retrying #{length(failed_msgs)} failed messages")
     {:noreply, failed_msgs, state}
   end
 
@@ -114,6 +133,10 @@ defmodule KinesisClient.Stream.Shard.Producer do
         checkpoint,
         state.app_state_opts
       )
+
+    Logger.debug(
+      "Acknowledged #{length(successful_msgs)} messages, Retrying #{length(failed_msgs)} failed messages"
+    )
 
     {:noreply, failed_msgs, state}
   end
@@ -165,8 +188,13 @@ defmodule KinesisClient.Stream.Shard.Producer do
            :trim_horizon,
            state.kinesis_opts
          ) do
-      {:ok, %{"ShardIterator" => nil}} -> {:stop, {:shutdown, :shard_closed}, state}
-      {:ok, %{"ShardIterator" => iterator}} -> get_records(%{state | shard_iterator: iterator})
+      {:ok, %{"ShardIterator" => nil}} ->
+        AppState.close_shard(state.app_name, state.shard_id, state.app_state_opts)
+
+        {:noreply, [], %{status: :closed}}
+
+      {:ok, %{"ShardIterator" => iterator}} ->
+        get_records(%{state | shard_iterator: iterator})
     end
   end
 
@@ -183,8 +211,12 @@ defmodule KinesisClient.Stream.Shard.Producer do
              state.starting_sequence_number
            )
          ) do
-      {:ok, %{"ShardIterator" => nil}} -> {:stop, {:shutdown, :shard_closed}, state}
-      {:ok, %{"ShardIterator" => iterator}} -> get_records(%{state | shard_iterator: iterator})
+      {:ok, %{"ShardIterator" => nil}} ->
+        AppState.close_shard(state.app_name, state.shard_id, state.app_state_opts)
+        {:noreply, [], %{status: :closed}}
+
+      {:ok, %{"ShardIterator" => iterator}} ->
+        get_records(%{state | shard_iterator: iterator})
     end
   end
 
@@ -204,7 +236,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
       case {records, new_demand} do
         {[], _} -> schedule_shard_poll(state.poll_interval)
         {_, 0} -> nil
-        _ -> schedule_shard_poll(state.poll_interval)
+        _ -> schedule_shard_poll(0)
       end
 
     new_state = %{
@@ -219,9 +251,11 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
   # convert Kinesis records to Broadway messages
   defp wrap_records(records) do
+    ref = make_ref()
+
     Enum.map(records, fn %{"Data" => data} = record ->
       metadata = Map.delete(record, "Data")
-      acknowledger = {Broadway.CallerAcknowledger, {self(), make_ref()}, nil}
+      acknowledger = {Broadway.CallerAcknowledger, {self(), ref}, nil}
       %Broadway.Message{data: data, metadata: metadata, acknowledger: acknowledger}
     end)
   end

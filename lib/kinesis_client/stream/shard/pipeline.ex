@@ -12,13 +12,30 @@ defmodule KinesisClient.Stream.Shard.Pipeline do
       stream_name: opts[:stream_name],
       kinesis_opts: Keyword.get(opts, :kinesis_opts, []),
       app_state_opts: Keyword.get(opts, :app_state_opts, []),
+      poll_interval: Keyword.get(opts, :poll_interval, 5_000),
       status: :stopped
     ]
 
+    min_demand = Keyword.get(opts, :min_demand, 10)
+    max_demand = Keyword.get(opts, :max_demand, 20)
+    batch_size = Keyword.get(opts, :batch_size, 20)
+
     processor_concurrency = Keyword.get(opts, :processor_concurrency, 1)
     batcher_concurrency = Keyword.get(opts, :batcher_concurrency, 1)
-    processor_opts = Keyword.get(opts, :processors, default: [concurrency: processor_concurrency])
-    batcher_opts = Keyword.get(opts, :batchers, default: [concurrency: batcher_concurrency])
+
+    processor_opts =
+      Keyword.get(opts, :processors,
+        default: [
+          concurrency: processor_concurrency,
+          min_demand: min_demand,
+          max_demand: max_demand
+        ]
+      )
+
+    batcher_opts =
+      Keyword.get(opts, :batchers,
+        default: [concurrency: batcher_concurrency, batch_size: batch_size]
+      )
 
     # pipeline context must be a map
     pipeline_context =

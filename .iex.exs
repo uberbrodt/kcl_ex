@@ -3,10 +3,27 @@ defmodule ReplTest do
     opts = [
       stream_name: "kcl-ex-test-stream",
       app_name: "cbrodt-test-app",
-      shard_consumer: ReplTestShardConsumer
+      shard_consumer: ReplTestShardConsumer,
+      processors: [
+        default: [
+          concurrency: 1,
+          min_demand: 10,
+          max_demand: 20
+        ]
+      ],
+      batchers: [
+        default: [
+          concurrency: 1,
+          batch_size: 40
+        ]
+      ]
     ]
 
     KinesisClient.Stream.start_link(opts)
+  end
+
+  def scan_table(table_name \\ "cbrodt-test-app") do
+    ExAws.Dynamo.scan(table_name, limit: 20) |> ExAws.request()
   end
 
   def use_localstack_services do
@@ -37,11 +54,12 @@ defmodule ReplTestShardConsumer do
     path = Path.join("repl_output", "#{id}.json")
     :ok = File.write(path, Jason.encode!(%{data: data, metadata: metadata}))
     Logger.info("processing message with id: #{id}")
-    msg
+    Broadway.Message.put_batcher(msg, :default)
   end
 
   @impl Broadway
   def handle_batch(_batcher, messages, _batch_info, _context) do
+    Logger.info("Got batch of size: #{length(messages)}")
     messages
   end
 
