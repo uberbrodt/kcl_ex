@@ -1,7 +1,7 @@
 defmodule KinesisClient.Stream.Shard.Lease do
   @moduledoc false
   require Logger
-  use GenServer, restart: :temporary
+  use GenServer
   alias KinesisClient.Stream.AppState
   alias KinesisClient.Stream.AppState.ShardLease
   alias KinesisClient.Stream.Shard.Pipeline

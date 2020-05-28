@@ -1,6 +1,6 @@
 defmodule KinesisClient.Stream.Shard do
   @moduledoc false
-  use Supervisor
+  use Supervisor, restart: :transient
   alias KinesisClient.Stream.Shard.{Lease, Pipeline}
   import KinesisClient.Util
 

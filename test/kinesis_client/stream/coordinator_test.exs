@@ -34,7 +34,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
       :ok
     end)
 
-    {:ok, _} = start_supervised({Coordinator, opts})
+    {:ok, _} = start_coordinator(opts)
 
     assert_receive {:shards, shards}, 5_000
     assert_receive {:shard_started, %{pid: pid}}, 5_000
@@ -71,7 +71,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
       :ok
     end)
 
-    {:ok, _} = start_supervised({Coordinator, opts})
+    {:ok, _} = start_coordinator(opts)
 
     assert_receive {:shards, shards}, 5_000
     assert_receive {:shard_started, %{pid: pid}}, 5_000
@@ -103,7 +103,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
       :ok
     end)
 
-    {:ok, _} = start_supervised({Coordinator, opts})
+    {:ok, _} = start_coordinator(opts)
 
     assert_receive {:shards, shards}, 5_000
     assert_receive {:shard_started, %{pid: pid, shard_id: "shardId-000000000000"}}, 5_000
@@ -137,7 +137,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
       :ok
     end)
 
-    {:ok, coordinator} = start_supervised({Coordinator, opts})
+    {:ok, coordinator} = start_coordinator(opts)
     assert_receive {:retrying_describe_stream, pid}, 5_000
 
     assert coordinator == pid
@@ -177,5 +177,9 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     ]
 
     Keyword.merge(opts, overrides)
+  end
+
+  defp start_coordinator(args) do
+    start_supervised(Supervisor.child_spec({Coordinator, args}, restart: :temporary))
   end
 end

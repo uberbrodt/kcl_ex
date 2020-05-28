@@ -4,7 +4,7 @@ defmodule KinesisClient.Stream.Coordinator do
   starting and stopping `KinesisClient.Stream.Shard` processes as necessary to ensure the
   stream is processed completely and in the correct order.
   """
-  use GenServer, restart: :temporary
+  use GenServer
   require Logger
   alias KinesisClient.Kinesis
   alias KinesisClient.Stream.Shard
