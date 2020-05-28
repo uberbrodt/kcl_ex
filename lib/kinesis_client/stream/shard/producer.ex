@@ -111,7 +111,10 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
     notify({:acked, %{checkpoint: checkpoint, success: successful_msgs, failed: []}}, state)
 
-    Logger.debug("Acknowledged #{length(successful_msgs)} messages")
+    Logger.debug(
+      "Acknowledged #{length(successful_msgs)} messages: [app_name: #{state.app_name} " <>
+        "shard_id: #{state.shard_id}"
+    )
 
     {:noreply, [], state}
   end
