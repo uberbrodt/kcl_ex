@@ -1,9 +1,7 @@
-defmodule Mix.Tasks.LoadTestStream do
+defmodule Mix.Tasks.KinesisClient.LoadTestStream do
   @moduledoc "a task"
   use Mix.Task
   alias ExAws.Kinesis
-
-  @shortdoc "foo"
 
   @stream_name "kcl-ex-test-stream"
 
