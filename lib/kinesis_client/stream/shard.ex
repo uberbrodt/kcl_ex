@@ -11,7 +11,6 @@ defmodule KinesisClient.Stream.Shard do
   def init(opts) do
     lease_opts = [
       app_name: opts[:app_name],
-      coordinator_name: opts[:coordinator_name],
       shard_id: opts[:shard_id],
       lease_owner: opts[:lease_owner]
     ]
@@ -23,7 +22,8 @@ defmodule KinesisClient.Stream.Shard do
       stream_name: opts[:stream_name],
       shard_consumer: opts[:shard_consumer],
       processors: opts[:processors],
-      batchers: opts[:batchers]
+      batchers: opts[:batchers],
+      coordinator_name: opts[:coordinator_name]
     ]
 
     lease_opts =
@@ -42,6 +42,10 @@ defmodule KinesisClient.Stream.Shard do
 
   def start(supervisor, shard_info) do
     DynamicSupervisor.start_child(supervisor, {__MODULE__, shard_info})
+  end
+
+  def stop(shard) do
+    Supervisor.stop(shard, :normal)
   end
 
   def name(stream_name, shard_id) do

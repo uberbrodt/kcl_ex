@@ -40,6 +40,10 @@ defmodule KinesisClient.Stream.Coordinator do
     GenServer.start_link(__MODULE__, args, name: args[:name])
   end
 
+  def close_shard(coordinator, shard_id) do
+    GenServer.cast(coordinator, {:close_shard, shard_id})
+  end
+
   @impl GenServer
   def init(opts) do
     state = %__MODULE__{
@@ -72,6 +76,16 @@ defmodule KinesisClient.Stream.Coordinator do
   @impl GenServer
   def handle_call(:get_graph, _from, %{shard_graph: graph} = s) do
     {:reply, graph, s}
+  end
+
+  @impl GenServer
+  def handle_cast({:close_shard, shard_id}, %{shard_ref_map: shards, stream_name: sn} = state) do
+    {ref, _} = Enum.find(shards, fn {_monitor_ref, in_shard_id} -> in_shard_id == shard_id end)
+
+    Process.demonitor(ref, :flush)
+    Shard.stop(Shard.name(sn, shard_id))
+
+    {:noreply, state}
   end
 
   def create_table_if_not_exists(state) do
@@ -142,21 +156,32 @@ defmodule KinesisClient.Stream.Coordinator do
     shard_r = list_relationships(shard_graph)
 
     Enum.reduce(shard_r, state.shard_ref_map, fn {shard_id, parents}, acc ->
+      shard_lease = get_lease(shard_id, state)
+
       case parents do
         [] ->
-          case start_shard(shard_id, state) do
-            {:ok, pid} -> Map.put(acc, Process.monitor(pid), shard_id)
+          case shard_lease do
+            %{completed: true} ->
+              acc
+
+            _ ->
+              case start_shard(shard_id, state) do
+                {:ok, pid} -> Map.put(acc, Process.monitor(pid), shard_id)
+              end
           end
 
         # handle shard splits
         [single_parent] ->
           case get_lease(single_parent, state) do
             %{completed: true} ->
+              Logger.info("Parent shard #{single_parent} is completed so starting #{shard_id}")
+
               case start_shard(shard_id, state) do
                 {:ok, pid} -> Map.put(acc, Process.monitor(pid), shard_id)
               end
 
             %{completed: false} ->
+              Logger.info("Parent shard #{single_parent} is not completed so skipping #{shard_id}")
               acc
           end
 

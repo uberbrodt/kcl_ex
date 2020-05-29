@@ -6,6 +6,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   require Logger
   alias KinesisClient.Kinesis
   alias KinesisClient.Stream.AppState
+  alias KinesisClient.Stream.Coordinator
   @behaviour Broadway.Producer
 
   defstruct [
@@ -23,7 +24,8 @@ defmodule KinesisClient.Stream.Shard.Producer do
     :app_name,
     :app_state_opts,
     :lease_owner,
-    :shard_closed_at,
+    :shard_closed_timer,
+    shutdown_delay: 300_000,
     demand: 0
   ]
 
@@ -96,6 +98,19 @@ defmodule KinesisClient.Stream.Shard.Producer do
     get_records(%{state | poll_timer: nil})
   end
 
+  def handle_info(:shard_closed, %{coordinator_name: coordinator, shard_id: shard_id} = state) do
+    # just in case something goes awry, try and close the Shard in the future
+    Logger.info(
+      "Shard is closed, notifying Coordinator: [app_name: #{state.app_name}, " <>
+        "shard_id: #{state.shard_id}]"
+    )
+
+    timer = Process.send_after(self(), :shard_closed, state.shutdown_delay)
+    AppState.close_shard(state.app_name, state.shard_id, state.app_state_opts)
+    :ok = Coordinator.close_shard(coordinator, shard_id)
+    {:noreply, %{state | shard_closed_timer: timer}}
+  end
+
   @impl GenStage
   def handle_info({:ack, _ref, successful_msgs, []}, state) do
     %{metadata: %{"SequenceNumber" => checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
@@ -116,12 +131,25 @@ defmodule KinesisClient.Stream.Shard.Producer do
         "shard_id: #{state.shard_id}"
     )
 
+    state = handle_closed_shard(state)
+
     {:noreply, [], state}
   end
 
   @impl GenStage
   def handle_info({:ack, _ref, [], failed_msgs}, state) do
     Logger.debug("Retrying #{length(failed_msgs)} failed messages")
+
+    state =
+      case state.shard_closed_timer do
+        nil ->
+          state
+
+        timer ->
+          Process.cancel_timer(timer)
+          %{state | shard_closed_timer: nil}
+      end
+
     {:noreply, failed_msgs, state}
   end
 
@@ -140,6 +168,16 @@ defmodule KinesisClient.Stream.Shard.Producer do
     Logger.debug(
       "Acknowledged #{length(successful_msgs)} messages, Retrying #{length(failed_msgs)} failed messages"
     )
+
+    state =
+      case state.shard_closed_timer do
+        nil ->
+          state
+
+        timer ->
+          Process.cancel_timer(timer)
+          %{state | shard_closed_timer: nil}
+      end
 
     {:noreply, failed_msgs, state}
   end
@@ -184,38 +222,9 @@ defmodule KinesisClient.Stream.Shard.Producer do
     {:reply, :ok, [], %{state | status: :stopped}}
   end
 
-  defp get_records(%__MODULE__{shard_iterator: nil, shard_iterator_type: :trim_horizon} = state) do
-    case Kinesis.get_shard_iterator(
-           state.stream_name,
-           state.shard_id,
-           :trim_horizon,
-           state.kinesis_opts
-         ) do
+  defp get_records(%__MODULE__{shard_iterator: nil} = state) do
+    case get_shard_iterator(state) do
       {:ok, %{"ShardIterator" => nil}} ->
-        AppState.close_shard(state.app_name, state.shard_id, state.app_state_opts)
-
-        {:noreply, [], %{status: :closed}}
-
-      {:ok, %{"ShardIterator" => iterator}} ->
-        get_records(%{state | shard_iterator: iterator})
-    end
-  end
-
-  defp get_records(
-         %__MODULE__{shard_iterator: nil, shard_iterator_type: :after_sequence_number} = state
-       ) do
-    case Kinesis.get_shard_iterator(
-           state.stream_name,
-           state.shard_id,
-           :after_sequence_number,
-           Keyword.put(
-             state.kinesis_opts,
-             :starting_sequence_number,
-             state.starting_sequence_number
-           )
-         ) do
-      {:ok, %{"ShardIterator" => nil}} ->
-        AppState.close_shard(state.app_name, state.shard_id, state.app_state_opts)
         {:noreply, [], %{status: :closed}}
 
       {:ok, %{"ShardIterator" => iterator}} ->
@@ -252,6 +261,28 @@ defmodule KinesisClient.Stream.Shard.Producer do
     {:noreply, messages, new_state}
   end
 
+  defp get_shard_iterator(%{shard_iterator_type: :after_sequence_number} = state) do
+    Kinesis.get_shard_iterator(
+      state.stream_name,
+      state.shard_id,
+      :after_sequence_number,
+      Keyword.put(
+        state.kinesis_opts,
+        :starting_sequence_number,
+        state.starting_sequence_number
+      )
+    )
+  end
+
+  defp get_shard_iterator(%{shard_iterator_type: :trim_horizon} = state) do
+    Kinesis.get_shard_iterator(
+      state.stream_name,
+      state.shard_id,
+      :trim_horizon,
+      state.kinesis_opts
+    )
+  end
+
   # convert Kinesis records to Broadway messages
   defp wrap_records(records) do
     ref = make_ref()
@@ -261,6 +292,26 @@ defmodule KinesisClient.Stream.Shard.Producer do
       acknowledger = {Broadway.CallerAcknowledger, {self(), ref}, nil}
       %Broadway.Message{data: data, metadata: metadata, acknowledger: acknowledger}
     end)
+  end
+
+  defp handle_closed_shard(%{status: :closed, shard_closed_timer: nil, shutdown_delay: delay} = s) do
+    timer = Process.send_after(self(), :shard_closed, delay)
+
+    %{s | shard_closed_timer: timer}
+  end
+
+  defp handle_closed_shard(
+         %{status: :closed, shard_closed_timer: old_timer, shutdown_delay: delay} = s
+       ) do
+    Process.cancel_timer(old_timer)
+
+    timer = Process.send_after(self(), :shard_closed, delay)
+
+    %{s | shard_closed_timer: timer}
+  end
+
+  defp handle_closed_shard(state) do
+    state
   end
 
   defp schedule_shard_poll(interval) do

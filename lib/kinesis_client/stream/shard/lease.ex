@@ -17,7 +17,6 @@ defmodule KinesisClient.Stream.Shard.Lease do
 
   defstruct [
     :app_name,
-    :coordinator_name,
     :shard_id,
     :lease_owner,
     :lease_count,
@@ -25,7 +24,6 @@ defmodule KinesisClient.Stream.Shard.Lease do
     :app_state_opts,
     :renew_interval,
     :notify,
-    :status,
     :lease_expiry,
     :lease_holder
   ]
@@ -36,7 +34,6 @@ defmodule KinesisClient.Stream.Shard.Lease do
   def init(opts) do
     state = %__MODULE__{
       app_name: opts[:app_name],
-      coordinator_name: opts[:coordinator_name],
       shard_id: opts[:shard_id],
       lease_owner: opts[:lease_owner],
       app_state_opts: Keyword.get(opts, :app_state_opts, []),

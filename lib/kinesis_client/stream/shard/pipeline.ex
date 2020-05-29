@@ -13,6 +13,7 @@ defmodule KinesisClient.Stream.Shard.Pipeline do
       kinesis_opts: Keyword.get(opts, :kinesis_opts, []),
       app_state_opts: Keyword.get(opts, :app_state_opts, []),
       poll_interval: Keyword.get(opts, :poll_interval, 5_000),
+      coordinator_name: opts[:coordinator_name],
       status: :stopped
     ]
 
