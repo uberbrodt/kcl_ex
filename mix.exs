@@ -4,7 +4,7 @@ defmodule KinesisClient.Mixfile do
   def project do
     [
       app: :kinesis_client,
-      version: "0.2.0",
+      version: "1.0.0-rc.0",
       elixir: "~> 1.7",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -53,7 +53,7 @@ defmodule KinesisClient.Mixfile do
       {:broadway, "~> 0.6.0"},
       {:configparser_ex, "~> 4.0"},
       {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:ex_aws, "~> 2.0"},
       {:ex_aws_dynamo, "~> 3.0"},
       {:ex_aws_kinesis, "~> 2.0"},
@@ -62,7 +62,7 @@ defmodule KinesisClient.Mixfile do
       {:hackney, "~> 1.9"},
       {:jason, "~> 1.1"},
       {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
-      {:mox, "~> 0.5.2", only: :test}
+      {:mox, "~> 0.5", only: :test}
     ]
   end
 end
