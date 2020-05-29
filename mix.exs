@@ -24,8 +24,7 @@ defmodule KinesisClient.Mixfile do
 
   def description do
     """
-    A library for creating Elixir clients for AWS Kinesis. Uses the Multilang
-    Daemon recommended by Amazon.
+    A pure Elixir implementation of the AWS Java Kinesis Client Library (KCL)
     """
   end
 
