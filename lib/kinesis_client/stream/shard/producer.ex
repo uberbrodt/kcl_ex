@@ -3,6 +3,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   Producer GenStage used in `KinesisClient.Stream.ShardConsumer` Broadway pipeline.
   """
   use GenStage
+  use Retry.Annotation
   require Logger
   alias KinesisClient.Kinesis
   alias KinesisClient.Stream.AppState
@@ -238,7 +239,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
        "NextShardIterator" => next_iterator,
        "MillisBehindLatest" => _millis_behind_latest,
        "Records" => records
-     }} = Kinesis.get_records(state.shard_iterator, Keyword.merge(kinesis_opts, limit: demand))
+     }} = get_records_with_retry(state, Keyword.merge(kinesis_opts, limit: demand))
 
     new_demand = demand - length(records)
 
@@ -259,6 +260,11 @@ defmodule KinesisClient.Stream.Shard.Producer do
     }
 
     {:noreply, messages, new_state}
+  end
+
+  @retry with: exponential_backoff(500) |> Stream.take(5)
+  defp get_records_with_retry(state, kinesis_opts) do
+    Kinesis.get_records(state.shard_iterator, kinesis_opts)
   end
 
   defp get_shard_iterator(%{shard_iterator_type: :after_sequence_number} = state) do
