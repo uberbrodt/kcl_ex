@@ -66,7 +66,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
           take_or_renew_lease(s, state)
       end
 
-    if new_state.lease_holder == true do
+    if new_state.lease_holder do
       :ok = Pipeline.start(state.app_name, state.shard_id)
     end
 
