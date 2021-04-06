@@ -239,7 +239,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
        "NextShardIterator" => next_iterator,
        "MillisBehindLatest" => _millis_behind_latest,
        "Records" => records
-     }} = get_records_with_retry(state.shard_iterator, Keyword.merge(kinesis_opts, limit: demand))
+     }} = get_records_with_retry(state, Keyword.merge(kinesis_opts, limit: demand))
 
     new_demand = demand - length(records)
 
