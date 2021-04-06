@@ -262,7 +262,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
     {:noreply, messages, new_state}
   end
 
-  @retry with: exponential_backoff(500) |> Stream.take(4)
+  @retry with: exponential_backoff(500) |> Stream.take(5)
   defp get_records_with_retry(state, kinesis_opts) do
     Kinesis.get_records(state.shard_iterator, kinesis_opts)
   end
