@@ -8,11 +8,13 @@ config :ex_aws,
 config :ex_aws, :dynamo_db,
   scheme: "http://",
   host: "localhost",
-  port: "4569",
+  port: "4566",
   region: "us-east-1"
 
 config :ex_aws, :kinesis,
   scheme: "http://",
   host: "localhost",
-  port: "4568",
+  port: "4566",
   region: "us-east-1"
+
+config :logger, level: :debug

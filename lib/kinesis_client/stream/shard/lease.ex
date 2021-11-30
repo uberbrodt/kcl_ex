@@ -12,7 +12,9 @@ defmodule KinesisClient.Stream.Shard.Lease do
   @default_lease_expiry 90_001
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: name(opts[:shard_id]))
+    name = name(opts[:app_name], opts[:shard_id])
+
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   defstruct [
@@ -162,7 +164,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
         notify({:lease_renewed, state}, state)
         state
 
-      :lease_renew_failed ->
+      {:error, :lease_renew_failed} ->
         Logger.debug(
           "Failed to renew lease, stopping producer: [app_name: #{app_name}, " <>
             "shard_id: #{state.shard_id}, lease_owner: #{state.lease_owner}]"
@@ -177,7 +179,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
     end
   end
 
-  defp take_lease(shard_lease, %{app_state_opts: opts, app_name: app_name} = state) do
+  defp take_lease(_shard_lease, %{app_state_opts: opts, app_name: app_name} = state) do
     expected = state.lease_count + 1
 
     Logger.debug(
@@ -197,7 +199,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
         :ok = Pipeline.start(app_name, state.shard_id)
         state
 
-      :lease_take_failed ->
+      {:error, :lease_take_failed} ->
         # TODO
         # :ok = Processor.ensure_halted(state)
         %{state | lease_holder: false, lease_count_increment_time: current_time()}
@@ -217,7 +219,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
     System.monotonic_time(:millisecond)
   end
 
-  def name(shard_id) do
-    Module.concat(__MODULE__, shard_id)
+  def name(app_name, shard_id) do
+    Module.concat([__MODULE__, app_name, shard_id])
   end
 end

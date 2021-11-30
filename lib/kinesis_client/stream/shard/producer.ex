@@ -155,7 +155,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
   @impl GenStage
   def handle_info({:ack, _ref, successful_msgs, failed_msgs}, state) do
-    %{metadata: %{sequence_number: checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
+    %{metadata: %{"SequenceNumber" => checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
 
     :ok =
       AppState.update_checkpoint(

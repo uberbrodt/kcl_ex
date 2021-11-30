@@ -49,7 +49,6 @@ defmodule KinesisClient.Stream.Shard do
   end
 
   def name(stream_name, shard_id) do
-    result = Module.concat(__MODULE__, stream_name)
-    Module.concat(result, shard_id)
+    Module.concat([__MODULE__, stream_name, shard_id])
   end
 end

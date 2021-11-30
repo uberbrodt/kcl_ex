@@ -69,7 +69,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     end)
     |> expect(:get_records, fn _, opts ->
       count = opts[:limit] - 5
-      records = Enum.map(0..count, fn _ -> %{"Data" => "foo", "SequenceNumber" => "12345"} end)
+      records = Enum.map(1..count, fn _ -> %{"Data" => "foo", "SequenceNumber" => "12345"} end)
 
       {:ok, %{"NextShardIterator" => "foo", "MillisBehindLatest" => 5_000, "Records" => records}}
     end)
@@ -93,6 +93,8 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     send(producer, {:ack, make_ref(), events, []})
 
     assert_receive {:acked, %{success: successful, checkpoint: "12345", failed: []}}, 10_000
+
+    assert length(successful) == 5
   end
 
   defp producer_opts(overrides \\ []) do

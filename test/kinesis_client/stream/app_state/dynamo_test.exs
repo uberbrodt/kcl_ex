@@ -158,7 +158,7 @@ defmodule KinesisClient.Stream.AppState.DynamoTest do
       {:error, e} ->
         case attempts do
           x when x <= 5 -> confirm_table_created(app_name, attempts + 1)
-          _ -> raise "could not create dynamodb table! #{IO.inspect(e)}"
+          _ -> raise "could not create dynamodb table! #{inspect(e)}"
         end
     end
   end
