@@ -76,10 +76,14 @@ defmodule KinesisClient.Stream do
 
   defp get_coordinator_name(opts) do
     case Keyword.get(opts, :shard_supervisor) do
-      nil -> Module.concat(KinesisClient.Stream.Coordinator, opts[:stream_name])
+      nil ->
+        Module.concat([KinesisClient.Stream.Coordinator, opts[:app_name], opts[:stream_name]])
+
       # Shard processes may be running on nodes different from the Coordinator if passed
       # :shard_supervisor is distributed,so use :global to allow inter-node communication.
-      _ -> {:global, Module.concat(KinesisClient.Stream.Coordinator, opts[:stream_name])}
+      _ ->
+        {:global,
+         Module.concat([KinesisClient.Stream.Coordinator, opts[:app_name], opts[:stream_name]])}
     end
   end
 
@@ -102,7 +106,13 @@ defmodule KinesisClient.Stream do
   @spec get_shard_supervisor(keyword) ::
           {{module, keyword}, name :: any} | no_return
   defp get_shard_supervisor(opts) do
-    name = Module.concat(KinesisClient.Stream.ShardSupervisor, opts[:stream_name])
+    name =
+      Module.concat([
+        KinesisClient.Stream.ShardSupervisor,
+        opts[:app_name],
+        opts[:stream_name]
+      ])
+
     {{DynamicSupervisor, [strategy: :one_for_one, name: name]}, name}
   end
 

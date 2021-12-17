@@ -48,7 +48,7 @@ defmodule KinesisClient.Stream.Shard do
     Supervisor.stop(shard, :normal)
   end
 
-  def name(stream_name, shard_id) do
-    Module.concat([__MODULE__, stream_name, shard_id])
+  def name(app_name, stream_name, shard_id) do
+    Module.concat([__MODULE__, app_name, stream_name, shard_id])
   end
 end

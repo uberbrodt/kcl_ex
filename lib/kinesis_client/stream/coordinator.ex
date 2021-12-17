@@ -79,11 +79,14 @@ defmodule KinesisClient.Stream.Coordinator do
   end
 
   @impl GenServer
-  def handle_cast({:close_shard, shard_id}, %{shard_ref_map: shards, stream_name: sn} = state) do
+  def handle_cast(
+        {:close_shard, shard_id},
+        %{shard_ref_map: shards, stream_name: sn, app_name: app_name} = state
+      ) do
     {ref, _} = Enum.find(shards, fn {_monitor_ref, in_shard_id} -> in_shard_id == shard_id end)
 
     Process.demonitor(ref, :flush)
-    Shard.stop(Shard.name(sn, shard_id))
+    Shard.stop(Shard.name(app_name, sn, shard_id))
 
     {:noreply, state}
   end
@@ -219,7 +222,7 @@ defmodule KinesisClient.Stream.Coordinator do
       |> Keyword.put(:shard_id, shard_id)
       |> Keyword.put(
         :shard_name,
-        Shard.name(state.stream_name, shard_id)
+        Shard.name(state.app_name, state.stream_name, shard_id)
       )
 
     {:ok, pid} = Shard.start(shard_supervisor, shard_args)
