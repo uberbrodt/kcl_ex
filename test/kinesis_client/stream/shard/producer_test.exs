@@ -97,6 +97,26 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     assert length(successful) == 5
   end
 
+  test "handles failure cases in getting records" do
+    opts = producer_opts(status: :started)
+    {:ok, producer} = start_supervised({Producer, opts})
+    {:ok, consumer} = start_supervised({KinesisClient.TestConsumer, self()})
+
+    KinesisMock
+    |> expect(:get_shard_iterator, fn _, _, _, _ ->
+      {:ok, %{"ShardIterator" => "somesharditerator"}}
+    end)
+    |> expect(:get_records, fn _, _ ->
+      {:error,
+       {"ProvisionedThroughputExceededException",
+        "Rate exceeded for shard shardId-000000000000 in stream xxx under account xxx."}}
+    end)
+
+    GenStage.sync_subscribe(consumer, to: producer)
+
+    refute_receive {:consumer_events, []}, 1_000
+  end
+
   defp producer_opts(overrides \\ []) do
     opts = [
       app_name: "foo",
