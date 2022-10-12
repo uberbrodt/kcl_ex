@@ -56,6 +56,8 @@ defmodule KinesisClient.Stream.Shard.Producer do
       notify_pid: Keyword.get(opts, :notify_pid)
     }
 
+    :telemetry.execute([:kinesis_client, :shard_producer, :started], %{}, telemetry_meta(state))
+
     Logger.debug("Starting KinesisClient.Stream.Shard.Producer: #{inspect(state)}")
     {:producer, state}
   end
@@ -115,15 +117,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   def handle_info({:ack, _ref, successful_msgs, []}, state) do
     %{metadata: %{"SequenceNumber" => checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
 
-    :ok =
-      AppState.update_checkpoint(
-        state.app_name,
-        state.shard_id,
-        state.lease_owner,
-        checkpoint,
-        state.app_state_opts
-      )
-
+    :ok = update_checkpoint(state, checkpoint)
     notify({:acked, %{checkpoint: checkpoint, success: successful_msgs, failed: []}}, state)
 
     Logger.debug(
@@ -157,13 +151,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   def handle_info({:ack, _ref, successful_msgs, failed_msgs}, state) do
     %{metadata: %{"SequenceNumber" => checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
 
-    :ok =
-      AppState.update_checkpoint(
-        state.shard_id,
-        state.lease_owner,
-        checkpoint,
-        state.app_state_opts
-      )
+    :ok = update_checkpoint(state, checkpoint)
 
     Logger.debug(
       "Acknowledged #{length(successful_msgs)} messages, Retrying #{length(failed_msgs)} failed messages"
@@ -222,6 +210,23 @@ defmodule KinesisClient.Stream.Shard.Producer do
     {:reply, :ok, [], %{state | status: :stopped}}
   end
 
+  defp update_checkpoint(%__MODULE__{} = state, checkpoint) do
+    meta = telemetry_meta(state)
+
+    :telemetry.span([:kinesis_client, :shard_producer, :update_checkpoint], meta, fn ->
+      :ok =
+        AppState.update_checkpoint(
+          state.app_name,
+          state.shard_id,
+          state.lease_owner,
+          checkpoint,
+          state.app_state_opts
+        )
+
+      {:ok, meta}
+    end)
+  end
+
   defp get_records(%__MODULE__{shard_iterator: nil} = state) do
     case get_shard_iterator(state) do
       {:ok, %{"ShardIterator" => nil}} ->
@@ -232,7 +237,20 @@ defmodule KinesisClient.Stream.Shard.Producer do
     end
   end
 
-  defp get_records(%__MODULE__{demand: demand, kinesis_opts: kinesis_opts} = state) do
+  defp get_records(state) do
+    meta = telemetry_meta(state)
+
+    :telemetry.span([:kinesis_client, :shard_producer, :get_records], meta, fn ->
+      {:ok, messages, new_state} = do_get_records(state)
+
+      {
+        {:noreply, messages, new_state},
+        Map.put(meta, :messages_count, length(messages))
+      }
+    end)
+  end
+
+  defp do_get_records(%__MODULE__{demand: demand, kinesis_opts: kinesis_opts} = state) do
     case Kinesis.get_records(state.shard_iterator, Keyword.merge(kinesis_opts, limit: demand)) do
       {:ok,
        %{
@@ -266,18 +284,24 @@ defmodule KinesisClient.Stream.Shard.Producer do
             shard_iterator: next_iterator
         }
 
-        {:noreply, messages, new_state}
+        {:ok, messages, new_state}
 
       {:error, reason} ->
         Logger.info(
           "Received error when getting records for #{state.app_name}-#{state.shard_id}: #{inspect(reason)}"
         )
 
+        :telemetry.execute(
+          [:kinesis_client, :shard_producer, :get_records_error],
+          %{reason: reason},
+          telemetry_meta(state)
+        )
+
         # Retry the get records call again to see if the issue clears up
         poll_timer = schedule_shard_poll(state.poll_interval)
         new_state = %{state | poll_timer: poll_timer}
 
-        {:noreply, [], new_state}
+        {:ok, [], new_state}
     end
   end
 
@@ -347,5 +371,13 @@ defmodule KinesisClient.Stream.Shard.Producer do
       nil ->
         :ok
     end
+  end
+
+  defp telemetry_meta(%__MODULE__{} = state) do
+    %{
+      shard_id: state.shard_id,
+      stream_name: state.stream_name,
+      app_name: state.app_name
+    }
   end
 end

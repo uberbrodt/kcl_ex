@@ -61,7 +61,8 @@ defmodule KinesisClient.Mixfile do
       {:hackney, "~> 1.9"},
       {:jason, "~> 1.1"},
       {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
-      {:mox, "~> 1.0", only: :test}
+      {:mox, "~> 1.0", only: :test},
+      {:telemetry, "~> 1.1.0"}
     ]
   end
 end
