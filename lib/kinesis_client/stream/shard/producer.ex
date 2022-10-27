@@ -71,9 +71,9 @@ defmodule KinesisClient.Stream.Shard.Producer do
   end
 
   @impl GenStage
-  def handle_demand(incoming_demand, %{demand: demand, status: :closed} = state) do
+  def handle_demand(_, %{demand: demand, status: :closed} = state) do
     Logger.info("Shard is closed, not storing demand")
-    {:noreply, [], %{state | demand: demand + incoming_demand}}
+    {:noreply, [], %{state | demand: demand}}
   end
 
   @impl GenStage
@@ -251,7 +251,10 @@ defmodule KinesisClient.Stream.Shard.Producer do
   end
 
   defp do_get_records(%__MODULE__{demand: demand, kinesis_opts: kinesis_opts} = state) do
-    case Kinesis.get_records(state.shard_iterator, Keyword.merge(kinesis_opts, limit: demand)) do
+    # Cap get_records to retrieve the lesser of demand or the Kinesis AWS limit of 10k records per request
+    limit = Enum.min([demand, 10_000])
+
+    case Kinesis.get_records(state.shard_iterator, Keyword.merge(kinesis_opts, limit: limit)) do
       {:ok,
        %{
          "NextShardIterator" => next_iterator,
