@@ -109,7 +109,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     assert length(successful) == 5
   end
 
-  test "checkpoints ShardLease with sequence_number when acking a mix of successful and failed messages" do
+  test "checkpoints ShardLease with highest sequence_number when acking a mix of successful and failed messages" do
     opts = producer_opts(status: :started)
     {:ok, producer} = start_supervised({Producer, opts})
     {:ok, consumer} = start_supervised({KinesisClient.TestConsumer, self()})
@@ -133,7 +133,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     {successful_events, failed_events} = Enum.split(events, 2)
 
     expected_latest_checkpoint =
-      successful_events
+      events
       |> Enum.reverse()
       |> hd()
       |> Map.from_struct()
@@ -159,7 +159,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     Process.sleep(500)
   end
 
-  test "does not checkpoint the ShardLease when there are no successful messages" do
+  test "will checkpoint the ShardLease when there are no successful messages" do
     opts = producer_opts(status: :started)
     {:ok, producer} = start_supervised({Producer, opts})
     {:ok, consumer} = start_supervised({KinesisClient.TestConsumer, self()})
@@ -180,9 +180,27 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     GenStage.sync_subscribe(consumer, to: producer, max_demand: 10, min_demand: 0)
     assert_receive {:consumer_events, events}, 5_000
 
-    # By sending an `ack` message without mocking the `AppState.update_checkpoint/5`
-    # the test will fail if it ever tries to call that function. The expectation is
-    # no call is sent.
+    expected_latest_checkpoint =
+      events
+      |> Enum.reverse()
+      |> hd()
+      |> Map.from_struct()
+      |> get_in([:metadata, "SequenceNumber"])
+
+    AppStateMock
+    |> expect(:update_checkpoint, fn in_app_name,
+                                     in_shard_id,
+                                     in_lease_owner,
+                                     in_checkpoint,
+                                     _opts ->
+      assert in_app_name == opts[:app_name]
+      assert in_shard_id == opts[:shard_id]
+      assert in_lease_owner == opts[:lease_owner]
+      assert in_checkpoint == expected_latest_checkpoint
+
+      :ok
+    end)
+
     send(producer, {:ack, make_ref(), [], events})
 
     # Sleep to allow time for concurrent process to handle the message
@@ -207,6 +225,35 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
     GenStage.sync_subscribe(consumer, to: producer)
 
     refute_receive {:consumer_events, []}, 1_000
+  end
+
+  describe "get_top_checkpoint/2" do
+    test "sorts sequence numbers correctly" do
+      assert "12345+10" =
+               KinesisClient.Stream.Shard.Producer.get_top_checkpoint(
+                 [%{metadata: %{"SequenceNumber" => "12345+1"}}],
+                 [%{metadata: %{"SequenceNumber" => "12345+10"}}]
+               )
+    end
+
+    test "returns -1 for incorrectly-formatted messages" do
+      assert "12345+5" =
+               KinesisClient.Stream.Shard.Producer.get_top_checkpoint(
+                 [%{mettadatums: %{"SequenceWhat?" => "12345+1"}}],
+                 [
+                   %{metaverse: %{"NotConforming" => "12345+10"}},
+                   %{is_correct_format?: true, metadata: %{"SequenceNumber" => "12345+5"}}
+                 ]
+               )
+    end
+
+    test "returns -1 for empty lists" do
+      assert "-1" =
+               KinesisClient.Stream.Shard.Producer.get_top_checkpoint(
+                 [],
+                 []
+               )
+    end
   end
 
   defp producer_opts(overrides \\ []) do

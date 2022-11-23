@@ -113,15 +113,36 @@ defmodule KinesisClient.Stream.Shard.Producer do
     {:noreply, %{state | shard_closed_timer: timer}}
   end
 
+  # TODO(KNO-2531) Switch to a custom Broadway.Acknowledger instead of relying
+  # on Broadway.CallerAcknowledger so that we can more efficiently checkpoint
+  # our progress in dynamo.
   @impl GenStage
-  def handle_info({:ack, _ref, successful_msgs, []}, state) do
-    %{metadata: %{"SequenceNumber" => checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
+  def handle_info({:ack, _ref, successful_msgs, failed_msgs}, state) do
+    checkpoint = get_top_checkpoint(successful_msgs, failed_msgs)
 
-    :ok = update_checkpoint(state, checkpoint)
-    notify({:acked, %{checkpoint: checkpoint, success: successful_msgs, failed: []}}, state)
+    # -1 means there wasn't a reliable checkpoint figure present, so
+    # we should not update the checkpoint at all.
+    # This should never happen with conforming messages.
+    if checkpoint != "-1" do
+      :ok = update_checkpoint(state, checkpoint)
+    else
+      Logger.warn("""
+        Unable to update checkpoint for app_name: #{state.app_name}, shard_id: #{state.shard_id}
+
+        This might happen for a few reasons (in order of likelihood):
+        1. You are writing tests, and your messages need something like %{metadata: %{"SequenceNumber" => "SomeStringHere"}}
+        2. Kinesis changed how it publishes messages
+        3. We tried to ack an empty batch (Not possible. Then again, we also don't _really_ know why the sky is blue, so go check your confidence.)
+      """)
+    end
+
+    notify(
+      {:acked, %{checkpoint: checkpoint, success: successful_msgs, failed: failed_msgs}},
+      state
+    )
 
     Logger.debug(
-      "Acknowledged #{length(successful_msgs)} messages: [app_name: #{state.app_name} " <>
+      "Acknowledged #{length(successful_msgs) + length(failed_msgs)} messages: [app_name: #{state.app_name} " <>
         "shard_id: #{state.shard_id}"
     )
 
@@ -131,49 +152,27 @@ defmodule KinesisClient.Stream.Shard.Producer do
   end
 
   @impl GenStage
-  def handle_info({:ack, _ref, [], failed_msgs}, state) do
-    Logger.debug("Retrying #{length(failed_msgs)} failed messages")
-
-    state =
-      case state.shard_closed_timer do
-        nil ->
-          state
-
-        timer ->
-          Process.cancel_timer(timer)
-          %{state | shard_closed_timer: nil}
-      end
-
-    {:noreply, failed_msgs, state}
-  end
-
-  @impl GenStage
-  def handle_info({:ack, _ref, successful_msgs, failed_msgs}, state) do
-    %{metadata: %{"SequenceNumber" => checkpoint}} = successful_msgs |> Enum.reverse() |> hd()
-
-    :ok = update_checkpoint(state, checkpoint)
-
-    Logger.debug(
-      "Acknowledged #{length(successful_msgs)} messages, Retrying #{length(failed_msgs)} failed messages"
-    )
-
-    state =
-      case state.shard_closed_timer do
-        nil ->
-          state
-
-        timer ->
-          Process.cancel_timer(timer)
-          %{state | shard_closed_timer: nil}
-      end
-
-    {:noreply, failed_msgs, state}
-  end
-
-  @impl GenStage
   def handle_info(msg, state) do
     Logger.debug("ShardConsumer.Producer got an unhandled message #{inspect(msg)}")
     {:noreply, [], state}
+  end
+
+  def get_top_checkpoint(successful_msgs, failed_msgs) do
+    # "-1" used as our default value. Indicates to caller that no checkpoint should be made.
+    ["-1" | successful_msgs]
+    |> unwrap_sequence_numbers()
+    # Batch sizes may be large, using list cons | is faster than ++
+    # https://github.com/devonestes/fast-elixir#combining-lists-with--vs--code
+    |> Enum.reduce(unwrap_sequence_numbers(failed_msgs), &[&1 | &2])
+    |> Enum.max()
+  end
+
+  defp unwrap_sequence_numbers(messages) do
+    Enum.map(messages, fn
+      %{metadata: %{"SequenceNumber" => checkpoint}} -> checkpoint
+      # Poorly formatted messages just turn into -1
+      _ -> "-1"
+    end)
   end
 
   @impl GenStage
@@ -198,7 +197,8 @@ defmodule KinesisClient.Stream.Shard.Producer do
           })
 
         :not_found ->
-          raise "No lease has been created for #{state.app_name}-#{state.shard_id}"
+          raise KinesisClient.Error,
+            message: "No lease has been created for #{state.app_name}-#{state.shard_id}"
       end
 
     GenStage.reply(from, :ok)
@@ -214,14 +214,26 @@ defmodule KinesisClient.Stream.Shard.Producer do
     meta = telemetry_meta(state)
 
     :telemetry.span([:kinesis_client, :shard_producer, :update_checkpoint], meta, fn ->
-      :ok =
-        AppState.update_checkpoint(
-          state.app_name,
-          state.shard_id,
-          state.lease_owner,
-          checkpoint,
-          state.app_state_opts
-        )
+      case AppState.update_checkpoint(
+             state.app_name,
+             state.shard_id,
+             state.lease_owner,
+             checkpoint,
+             state.app_state_opts
+           ) do
+        :ok ->
+          :ok
+
+        {:error, :lease_owner_match} ->
+          raise KinesisClient.Error,
+            message:
+              "Checkpoint failed for #{state.app_name}-#{state.shard_id}: this consumer is not the lease owner"
+
+        unknown ->
+          raise KinesisClient.Error,
+            message:
+              "Checkpoint failed for #{state.app_name}-#{state.shard_id}: #{inspect(unknown)}"
+      end
 
       {:ok, meta}
     end)
