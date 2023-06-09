@@ -2,4 +2,8 @@
 # and its dependencies with the aid of the Mix.Config module.
 import Config
 
+config :logger,
+  level: :debug,
+  backends: [:console]
+
 import_config "#{Mix.env()}.exs"

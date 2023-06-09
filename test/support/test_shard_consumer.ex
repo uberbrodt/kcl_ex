@@ -1,4 +1,5 @@
 defmodule KinesisClient.TestShardConsumer do
+  @moduledoc false
   @behaviour Broadway
 
   @impl Broadway

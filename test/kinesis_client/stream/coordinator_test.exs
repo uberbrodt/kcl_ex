@@ -1,8 +1,9 @@
 defmodule KinesisClient.Stream.CoordinatorTest do
   use KinesisClient.Case, async: false
 
-  alias KinesisClient.Stream.Coordinator
   alias KinesisClient.Stream.AppState.ShardLease
+  alias KinesisClient.Stream.Coordinator
+
   @stream_name "decline-roman-empire-test"
   @shard_count 6
   @supervisor_name MyShardSupervisor
@@ -12,15 +13,32 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     :ok
   end
 
+  test "#remove_missing_parents" do
+    %{"StreamDescription" => %{"Shards" => shards}} =
+      KinesisClient.KinesisResponses.describe_stream()
+
+    shards = Coordinator.remove_missing_parents(shards)
+    first_shard = Enum.at(shards, 0)
+    second_shard = Enum.at(shards, 1)
+    assert first_shard["ParentShardId"] == nil
+    assert second_shard["ParentShardId"] == first_shard["ShardId"]
+  end
+
   test "describes kinesis stream and starts shards" do
     {:ok, _} =
       start_supervised({DynamicSupervisor, [strategy: :one_for_one, name: @supervisor_name]})
 
+    {:ok, _consumer} = start_supervised({KinesisClient.TestConsumer, self()})
+
     opts = coordinator_opts()
 
-    expect(KinesisMock, :describe_stream, fn stream_name, _opts ->
+    KinesisMock
+    |> expect(:describe_stream, fn stream_name, _opts ->
       assert stream_name == @stream_name
       {:ok, KinesisClient.KinesisResponses.describe_stream()}
+    end)
+    |> stub(:get_records, fn _, _ ->
+      []
     end)
 
     AppStateMock
@@ -59,6 +77,9 @@ defmodule KinesisClient.Stream.CoordinatorTest do
       assert stream_name == @stream_name
       {:ok, KinesisClient.KinesisResponses.describe_stream(has_more_shards: false)}
     end)
+    |> stub(:get_records, fn _, _ ->
+      []
+    end)
 
     AppStateMock
     |> expect(:initialize, fn in_app_name, _ ->
@@ -88,9 +109,13 @@ defmodule KinesisClient.Stream.CoordinatorTest do
 
     opts = coordinator_opts()
 
-    stub(KinesisMock, :describe_stream, fn stream_name, _opts ->
+    KinesisMock
+    |> expect(:describe_stream, fn stream_name, _opts ->
       assert stream_name == @stream_name
       {:ok, KinesisClient.KinesisResponses.describe_stream_split()}
+    end)
+    |> stub(:get_records, fn _, _ ->
+      []
     end)
 
     shard0_lease = %ShardLease{shard_id: "shardId-000000000000", completed: false}
@@ -114,14 +139,16 @@ defmodule KinesisClient.Stream.CoordinatorTest do
 
     {:ok, _} = start_coordinator(opts)
 
-    assert_receive {:shards, shards}, 5_000
-    assert_receive {:shard_started, %{pid: pid, shard_id: "shardId-000000000000"}}, 5_000
-    assert Process.alive?(pid) == true
-    assert_receive {:shard_started, %{pid: pid, shard_id: "shardId-000000000001"}}, 5_000
-    assert Process.alive?(pid) == true
+    assert_receive {:shards, shards}, 100
+    assert_receive {:shard_started, %{pid: pid_0, shard_id: "shardId-000000000000"}}, 100
+    assert Process.alive?(pid_0) == true
+    assert_receive {:shard_started, %{pid: pid_1, shard_id: "shardId-000000000001"}}, 100
+    assert Process.alive?(pid_1) == true
 
-    refute_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000002"}}, 5_000
-    refute_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000003"}}, 5_000
+    refute_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000002"}}, 200
+    assert Process.alive?(pid_0) == true
+    refute_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000003"}}, 200
+    assert Process.alive?(pid_1) == true
 
     assert Enum.empty?(shards) == false
   end
@@ -133,9 +160,13 @@ defmodule KinesisClient.Stream.CoordinatorTest do
 
     opts = coordinator_opts()
 
-    stub(KinesisMock, :describe_stream, fn stream_name, _opts ->
+    KinesisMock
+    |> expect(:describe_stream, fn stream_name, _opts ->
       assert stream_name == @stream_name
       {:ok, KinesisClient.KinesisResponses.describe_stream_split()}
+    end)
+    |> stub(:get_records, fn _, _ ->
+      []
     end)
 
     shard0_lease = %ShardLease{shard_id: "shardId-000000000000", completed: true}
@@ -159,12 +190,12 @@ defmodule KinesisClient.Stream.CoordinatorTest do
 
     {:ok, _} = start_coordinator(opts)
 
-    assert_receive {:shards, shards}, 5_000
-    assert_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000001"}}, 5_000
-    assert_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000002"}}, 5_000
-    assert_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000003"}}, 5_000
+    assert_receive {:shards, shards}, 100
+    assert_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000001"}}, 100
+    assert_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000002"}}, 100
+    assert_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000003"}}, 100
 
-    refute_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000000"}}, 5_000
+    refute_receive {:shard_started, %{pid: _, shard_id: "shardId-000000000000"}}, 100
 
     assert Enum.empty?(shards) == false
   end
@@ -175,9 +206,13 @@ defmodule KinesisClient.Stream.CoordinatorTest do
 
     opts = coordinator_opts(retry_timeout: 100)
 
-    expect(KinesisMock, :describe_stream, fn stream_name, _opts ->
+    KinesisMock
+    |> expect(:describe_stream, fn stream_name, _opts ->
       assert stream_name == @stream_name
       {:ok, KinesisClient.KinesisResponses.describe_stream(stream_status: "UPDATING")}
+    end)
+    |> stub(:get_records, fn _, _ ->
+      []
     end)
 
     AppStateMock
@@ -214,6 +249,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
         app_name: app_name,
         coordinator_name: coordinator_name,
         lease_owner: worker_ref(),
+        pipeline: KinesisClient.TestPipeline,
         app_state_opts: [adapter: AppStateMock],
         processors: [
           default: [

@@ -1,8 +1,8 @@
 defmodule KinesisClient.Stream.AppState.ShardLeaseTest do
   use KinesisClient.Case
 
-  alias KinesisClient.Stream.AppState.ShardLease
   alias ExAws.Dynamo.Encodable
+  alias KinesisClient.Stream.AppState.ShardLease
 
   test "ExAws.Dynamo.Encodable.encode/2 implemented" do
     result = Encodable.encode(%ShardLease{}, [])

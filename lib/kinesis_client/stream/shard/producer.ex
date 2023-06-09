@@ -2,12 +2,16 @@ defmodule KinesisClient.Stream.Shard.Producer do
   @moduledoc """
   Producer GenStage used in `KinesisClient.Stream.ShardConsumer` Broadway pipeline.
   """
+  @behaviour Broadway.Producer
+
   use GenStage
-  require Logger
+  use Retry.Annotation
+
   alias KinesisClient.Kinesis
   alias KinesisClient.Stream.AppState
   alias KinesisClient.Stream.Coordinator
-  @behaviour Broadway.Producer
+
+  require Logger
 
   defstruct [
     :kinesis_opts,
@@ -229,6 +233,10 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
       {:ok, %{"ShardIterator" => iterator}} ->
         get_records(%{state | shard_iterator: iterator})
+
+      {:error, {"ResourceNotFoundException", error_message}} ->
+        Logger.info("(get_records).ResourceNotFoundException.#{error_message}: #{inspect(state)})")
+        {:noreply, [], %{status: :closed}}
     end
   end
 
@@ -238,7 +246,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
        "NextShardIterator" => next_iterator,
        "MillisBehindLatest" => _millis_behind_latest,
        "Records" => records
-     }} = Kinesis.get_records(state.shard_iterator, Keyword.merge(kinesis_opts, limit: demand))
+     }} = get_records_with_retry(state, Keyword.merge(kinesis_opts, limit: demand))
 
     new_demand = demand - length(records)
 
@@ -261,8 +269,13 @@ defmodule KinesisClient.Stream.Shard.Producer do
     {:noreply, messages, new_state}
   end
 
+  @retry with: 500 |> exponential_backoff() |> Stream.take(5)
+  defp get_records_with_retry(state, kinesis_opts) do
+    Kinesis.get_records(state.shard_iterator, kinesis_opts)
+  end
+
   defp get_shard_iterator(%{shard_iterator_type: :after_sequence_number} = state) do
-    Kinesis.get_shard_iterator(
+    get_shard_iterator_with_retry(
       state.stream_name,
       state.shard_id,
       :after_sequence_number,
@@ -275,11 +288,21 @@ defmodule KinesisClient.Stream.Shard.Producer do
   end
 
   defp get_shard_iterator(%{shard_iterator_type: :trim_horizon} = state) do
-    Kinesis.get_shard_iterator(
+    get_shard_iterator_with_retry(
       state.stream_name,
       state.shard_id,
       :trim_horizon,
       state.kinesis_opts
+    )
+  end
+
+  @retry with: 500 |> exponential_backoff() |> Stream.take(5)
+  defp get_shard_iterator_with_retry(stream_name, shard_id, shard_iterator_type, kinesis_opts) do
+    Kinesis.get_shard_iterator(
+      stream_name,
+      shard_id,
+      shard_iterator_type,
+      kinesis_opts
     )
   end
 

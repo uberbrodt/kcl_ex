@@ -1,11 +1,12 @@
 defmodule KinesisClient.Stream.AppState.Dynamo do
   @moduledoc false
+  @behaviour AppStateAdapter
+
+  alias ExAws.Dynamo
   alias KinesisClient.Stream.AppState.Adapter, as: AppStateAdapter
   alias KinesisClient.Stream.AppState.ShardLease
-  alias ExAws.Dynamo
-  require Logger
 
-  @behaviour AppStateAdapter
+  require Logger
 
   @impl AppStateAdapter
   def initialize(app_name, _opts) do
@@ -16,14 +17,15 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
   end
 
   defp create_table(app_name) do
-    case Dynamo.create_table(app_name, "shard_id", %{shard_id: :string}, 10, 10)
+    case app_name
+         |> Dynamo.create_table("shard_id", %{shard_id: :string}, 10, 10)
          |> ExAws.request() do
       {:ok, %{}} -> confirm_table_created(app_name)
     end
   end
 
   defp confirm_table_created(app_name, attempts \\ 1) do
-    case Dynamo.describe_table(app_name) |> ExAws.request() do
+    case app_name |> Dynamo.describe_table() |> ExAws.request() do
       {:ok, %{"Table" => %{"TableStatus" => "CREATING"}}} ->
         case attempts do
           x when x <= 5 -> confirm_table_created(app_name, attempts + 1)
@@ -49,7 +51,9 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
       lease_count: 1
     }
 
-    case Dynamo.put_item(app_name, shard_lease, update_opt) |> ExAws.request() do
+    case app_name
+         |> Dynamo.put_item(shard_lease, update_opt)
+         |> ExAws.request() do
       {:ok, _} ->
         :ok
 
@@ -63,8 +67,13 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
 
   @impl AppStateAdapter
   def get_lease(app_name, shard_id, _opts) do
-    case Dynamo.get_item(app_name, %{"shard_id" => shard_id}) |> ExAws.request() do
-      {:ok, %{"Item" => _} = item} -> item |> decode_item()
+    Logger.debug("(get_lease).app_name: #{app_name}")
+    Logger.debug("(get_lease).shard_id: #{shard_id}")
+
+    case app_name
+         |> Dynamo.get_item(%{"shard_id" => shard_id})
+         |> ExAws.request() do
+      {:ok, %{"Item" => _} = item} -> decode_item(item)
       {:ok, _} -> :not_found
       other -> other
     end
@@ -85,7 +94,9 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
       return_values: "UPDATED_NEW"
     ]
 
-    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt) |> ExAws.request() do
+    case app_name
+         |> Dynamo.update_item(%{"shard_id" => shard_id}, update_opt)
+         |> ExAws.request() do
       {:ok, %{"Attributes" => %{"lease_count" => _}}} -> {:ok, updated_count}
       {:error, {"ConditionalCheckFailedException", _}} -> {:error, :lease_renew_failed}
       reply -> reply
@@ -107,7 +118,9 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
       return_values: "UPDATED_NEW"
     ]
 
-    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt) |> ExAws.request() do
+    case app_name
+         |> Dynamo.update_item(%{"shard_id" => shard_id}, update_opt)
+         |> ExAws.request() do
       {:ok, %{"Attributes" => %{"lease_count" => _}}} -> {:ok, updated_count}
       {:error, {"ConditionalCheckFailedException", _}} -> {:error, :lease_take_failed}
       reply -> reply
@@ -130,7 +143,9 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
       return_values: "UPDATED_NEW"
     ]
 
-    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt) |> ExAws.request() do
+    case app_name
+         |> Dynamo.update_item(%{"shard_id" => shard_id}, update_opt)
+         |> ExAws.request() do
       {:ok, %{"Attributes" => %{"checkpoint" => %{"S" => ^checkpoint}}}} -> :ok
       {:error, {"ConditionalCheckFailedException", _}} -> {:error, :lease_owner_match}
       reply -> reply
@@ -149,7 +164,9 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
       return_values: "UPDATED_NEW"
     ]
 
-    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt) |> ExAws.request() do
+    case app_name
+         |> Dynamo.update_item(%{"shard_id" => shard_id}, update_opt)
+         |> ExAws.request() do
       {:ok, %{"Attributes" => %{"completed" => %{"BOOL" => true}}}} -> :ok
       {:error, {"ConditionalCheckFailedException", _}} -> {:error, :lease_owner_match}
       reply -> reply
@@ -157,7 +174,6 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
   end
 
   defp decode_item(item) do
-    item
-    |> Dynamo.decode_item(as: KinesisClient.Stream.AppState.ShardLease)
+    Dynamo.decode_item(item, as: KinesisClient.Stream.AppState.ShardLease)
   end
 end

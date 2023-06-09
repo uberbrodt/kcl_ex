@@ -49,19 +49,21 @@ defmodule KinesisClient.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:broadway, "~> 0.6.0"},
+      {:broadway, "~> 1.0"},
       {:configparser_ex, "~> 4.0"},
       {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
-      {:ex_aws, "~> 2.0"},
-      {:ex_aws_dynamo, "~> 3.0"},
+      {:ex_aws, "~> 2.1"},
+      {:ex_aws_dynamo, "~> 4.0"},
       {:ex_aws_kinesis, "~> 2.0"},
       {:excoveralls, "~> 0.10", only: :test},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false},
       {:hackney, "~> 1.9"},
       {:jason, "~> 1.1"},
       {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
-      {:mox, "~> 0.5", only: :test}
+      {:mox, "~> 1.0", only: :test},
+      {:retry, "~> 0.14"},
+      {:styler, "~> 0.7", only: [:dev, :test], runtime: false}
     ]
   end
 end

@@ -3,9 +3,12 @@ defmodule KinesisClient.Stream do
   This is the entry point for processing the shards of a Kinesis Data Stream.
   """
   use Supervisor
-  require Logger
+
   import KinesisClient.Util
+
   alias KinesisClient.Stream.Coordinator
+
+  require Logger
 
   @doc """
   Starts a `KinesisClient.Stream` process.

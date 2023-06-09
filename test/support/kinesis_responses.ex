@@ -1,4 +1,5 @@
 defmodule KinesisClient.KinesisResponses do
+  @moduledoc false
   def shard_object do
     %{
       "HashKeyRange" => %{
@@ -83,6 +84,7 @@ defmodule KinesisClient.KinesisResponses do
           "EndingHashKey" => "113427455640312821154458202477256070483",
           "StartingHashKey" => "56713727820156410577229101238628035242"
         },
+        "ParentShardId" => "shardId-000000000000",
         "SequenceNumberRange" => %{
           "StartingSequenceNumber" => "49606474897925971126165573671785210788527206059164565522"
         },
@@ -93,6 +95,7 @@ defmodule KinesisClient.KinesisResponses do
           "EndingHashKey" => "170141183460469231731687303715884105725",
           "StartingHashKey" => "113427455640312821154458202477256070484"
         },
+        "ParentShardId" => "shardId-000000000001",
         "SequenceNumberRange" => %{
           "StartingSequenceNumber" => "49606474897948271871364104294926746506799854420670545954"
         },
