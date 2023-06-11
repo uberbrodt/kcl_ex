@@ -5,8 +5,7 @@ defmodule KinesisClient.Stream.AppState do
   what shards to consume.
   """
 
-  def initialize(app_name, opts \\ []),
-    do: adapter(opts).initialize(app_name, opts)
+  def initialize(app_name, opts \\ []), do: adapter(opts).initialize(app_name, opts)
 
   @doc """
   Get a `KinesisClient.Stream.AppState.ShardInfo` struct by shard_id. If there is not an existing

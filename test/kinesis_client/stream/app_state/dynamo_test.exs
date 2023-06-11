@@ -1,15 +1,15 @@
 defmodule KinesisClient.Stream.AppState.DynamoTest do
   use KinesisClient.Case
 
+  alias ExAws.Dynamo
   alias KinesisClient.Stream.AppState.Dynamo, as: AppState
   alias KinesisClient.Stream.AppState.ShardLease
-  alias ExAws.Dynamo
 
   setup_all do
     app_name = "foo_app_#{random_string()}"
 
     {:ok, _result} =
-      Dynamo.create_table(app_name, "shard_id", %{shard_id: :string}, 1, 1) |> ExAws.request()
+      app_name |> Dynamo.create_table("shard_id", %{shard_id: :string}, 1, 1) |> ExAws.request()
 
     :ok = confirm_table_created(app_name)
     %{app_name: app_name}
@@ -145,7 +145,7 @@ defmodule KinesisClient.Stream.AppState.DynamoTest do
   end
 
   defp confirm_table_created(app_name, attempts \\ 1) do
-    case Dynamo.describe_table(app_name) |> ExAws.request() do
+    case app_name |> Dynamo.describe_table() |> ExAws.request() do
       {:ok, %{"Table" => %{"TableStatus" => "CREATING"}}} ->
         case attempts do
           x when x <= 5 -> confirm_table_created(app_name, attempts + 1)
@@ -158,7 +158,7 @@ defmodule KinesisClient.Stream.AppState.DynamoTest do
       {:error, e} ->
         case attempts do
           x when x <= 5 -> confirm_table_created(app_name, attempts + 1)
-          _ -> raise "could not create dynamodb table! #{IO.inspect(e)}"
+          _ -> raise "could not create dynamodb table! #{inspect(e)}"
         end
     end
   end

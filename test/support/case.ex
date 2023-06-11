@@ -1,13 +1,16 @@
 defmodule KinesisClient.Case do
+  @moduledoc false
   use ExUnit.CaseTemplate
+
   import Mox
 
   using do
     quote do
-      alias KinesisClient.KinesisMock
-      alias KinesisClient.Stream.AppStateMock
       import KinesisClient.TestUtil
       import Mox
+
+      alias KinesisClient.KinesisMock
+      alias KinesisClient.Stream.AppStateMock
     end
   end
 

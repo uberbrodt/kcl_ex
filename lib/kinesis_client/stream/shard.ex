@@ -1,8 +1,11 @@
 defmodule KinesisClient.Stream.Shard do
   @moduledoc false
   use Supervisor, restart: :transient
-  alias KinesisClient.Stream.Shard.{Lease, Pipeline}
+
   import KinesisClient.Util
+
+  alias KinesisClient.Stream.Shard.Lease
+  alias KinesisClient.Stream.Shard.Pipeline
 
   def start_link(args) do
     Supervisor.start_link(__MODULE__, args, name: args[:shard_name])
@@ -31,6 +34,7 @@ defmodule KinesisClient.Stream.Shard do
       |> optional_kw(:app_state_opts, Keyword.get(opts, :app_state_opts))
       |> optional_kw(:renew_interval, Keyword.get(opts, :lease_renew_interval))
       |> optional_kw(:lease_expiry, Keyword.get(opts, :lease_expiry))
+      |> optional_kw(:pipeline, Keyword.get(opts, :pipeline))
 
     children = [
       {Lease, lease_opts},

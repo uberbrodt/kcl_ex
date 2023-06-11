@@ -5,10 +5,13 @@ defmodule KinesisClient.Stream.Coordinator do
   stream is processed completely and in the correct order.
   """
   use GenServer
-  require Logger
+  use Retry.Annotation
+
   alias KinesisClient.Kinesis
-  alias KinesisClient.Stream.Shard
   alias KinesisClient.Stream.AppState
+  alias KinesisClient.Stream.Shard
+
+  require Logger
 
   defstruct [
     :name,
@@ -92,9 +95,22 @@ defmodule KinesisClient.Stream.Coordinator do
     AppState.initialize(state.app_name, state.app_state_opts)
   end
 
+  @spec remove_missing_parents(Map.t()) :: Map.t()
+  def remove_missing_parents(shards) do
+    Enum.map(shards, fn shard ->
+      if Enum.any?(shards, fn %{"ShardId" => shard_id} -> shard_id == shard["ParentShardId"] end) do
+        shard
+      else
+        Map.delete(shard, "ParentShardId")
+      end
+    end)
+  end
+
   defp describe_stream(state) do
     %{"StreamStatus" => status, "Shards" => shards} =
       get_shards(state.stream_name, state.kinesis_opts)
+
+    shards = remove_missing_parents(shards)
 
     notify({:shards, shards}, state)
 
@@ -109,12 +125,15 @@ defmodule KinesisClient.Stream.Coordinator do
 
         state = %{state | shard_map: shard_map}
 
+        Logger.debug("(describe_stream).shard_graph: #{inspect(shard_graph)}")
+        Logger.debug("(describe_stream).state: #{inspect(state)}")
+
         map = start_shards(shard_graph, state)
 
         {:noreply, %{state | shard_graph: shard_graph, shard_ref_map: map}}
 
       other ->
-        Logger.info("Stream is not in active state, sleeping... Stream state: #{inspect(other)}")
+        Logger.debug("Stream is not in active state, sleeping... Stream state: #{inspect(other)}")
 
         :timer.sleep(state.retry_timeout)
         notify({:retrying_describe_stream, self()}, state)
@@ -155,8 +174,15 @@ defmodule KinesisClient.Stream.Coordinator do
   defp start_shards(shard_graph, %__MODULE__{} = state) do
     shard_r = list_relationships(shard_graph)
 
+    Logger.debug("(start_shards).shard_r: #{inspect(shard_r)}")
+
     Enum.reduce(shard_r, state.shard_ref_map, fn {shard_id, parents}, acc ->
+      Logger.debug("(start_shards).shard_id: #{inspect(shard_id)}")
+      Logger.debug("(start_shards).parents: #{inspect(parents)}")
+
       shard_lease = get_lease(shard_id, state)
+
+      Logger.debug("(start_shards).shard_lease: #{inspect(shard_lease)}")
 
       case parents do
         [] ->
@@ -182,6 +208,10 @@ defmodule KinesisClient.Stream.Coordinator do
 
             %{completed: false} ->
               Logger.info("Parent shard #{single_parent} is not completed so skipping #{shard_id}")
+              acc
+
+            :not_found ->
+              Logger.info("Parent shard #{single_parent} does not exist so skipping #{shard_id}")
               acc
           end
 
@@ -240,10 +270,10 @@ defmodule KinesisClient.Stream.Coordinator do
     {:ok, result} =
       case shard_start_id do
         nil ->
-          Kinesis.describe_stream(stream_name, kinesis_opts)
+          describe_stream_with_retry(stream_name, kinesis_opts)
 
         x when is_binary(x) ->
-          Kinesis.describe_stream(
+          describe_stream_with_retry(
             stream_name,
             Keyword.merge(kinesis_opts, exclusive_start_shard_id: x)
           )
@@ -259,8 +289,13 @@ defmodule KinesisClient.Stream.Coordinator do
         )
 
       %{"StreamDescription" => %{"HasMoreShards" => false, "Shards" => shards} = stream} ->
-        stream |> Map.put("Shards", shards ++ shard_list)
+        Map.put(stream, "Shards", shards ++ shard_list)
     end
+  end
+
+  @retry with: 500 |> exponential_backoff() |> Stream.take(10)
+  defp describe_stream_with_retry(stream_name, kinesis_opts) do
+    Kinesis.describe_stream(stream_name, kinesis_opts)
   end
 
   defp add_vertex(graph, shard_id) do

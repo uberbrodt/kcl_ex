@@ -1,8 +1,8 @@
 defmodule KinesisClient.Stream.Shard.PipelineTest do
   use KinesisClient.Case, async: false
 
-  alias KinesisClient.Stream.Shard.Pipeline
   alias KinesisClient.Stream.AppState.ShardLease
+  alias KinesisClient.Stream.Shard.Pipeline
 
   test "can start producer" do
     app_name = "sdf9023kl"

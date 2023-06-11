@@ -39,13 +39,14 @@ end
 
 defmodule KinesisClient.Kinesis.AwsAdapter do
   @moduledoc false
+  @behaviour Adapter
+
   alias ExAws.Kinesis
   alias KinesisClient.Kinesis.Adapter
-  @behaviour Adapter
 
   @impl Adapter
   def describe_stream(stream_name, opts) do
-    case Kinesis.describe_stream(stream_name, opts) |> ExAws.request() do
+    case stream_name |> Kinesis.describe_stream(opts) |> ExAws.request() do
       {:ok, _} = reply -> reply
       error -> error
     end
@@ -55,7 +56,7 @@ defmodule KinesisClient.Kinesis.AwsAdapter do
   def get_shard_iterator(stream_name, shard_id, shard_iterator_type, opts) do
     request = Kinesis.get_shard_iterator(stream_name, shard_id, shard_iterator_type, opts)
 
-    case request |> ExAws.request() do
+    case ExAws.request(request) do
       {:ok, _} = reply -> reply
       error -> error
     end
@@ -63,7 +64,7 @@ defmodule KinesisClient.Kinesis.AwsAdapter do
 
   @impl Adapter
   def get_records(shard_iterator, opts) do
-    case Kinesis.get_records(shard_iterator, opts) |> ExAws.request() do
+    case shard_iterator |> Kinesis.get_records(opts) |> ExAws.request() do
       {:ok, _} = r -> r
       {:error, _} = e -> e
     end

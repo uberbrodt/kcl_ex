@@ -1,7 +1,9 @@
 defmodule KinesisClient.Stream.Shard.Pipeline do
   @moduledoc false
   use Broadway
+
   import KinesisClient.Util
+
   alias KinesisClient.Stream.Shard.Producer
 
   def start_link(opts) do
