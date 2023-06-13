@@ -53,6 +53,7 @@ defmodule KinesisClient.Mixfile do
       {:configparser_ex, "~> 4.0"},
       {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
+      {:ecto_sql, "~> 3.6"},
       {:ex_aws, "~> 2.1"},
       {:ex_aws_dynamo, "~> 4.0"},
       {:ex_aws_kinesis, "~> 2.0"},
