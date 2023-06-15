@@ -3,7 +3,6 @@ defmodule KinesisClient.Stream.Shard.Lease do
   use GenServer
 
   alias KinesisClient.Stream.AppState
-  alias KinesisClient.Stream.AppState.ShardLease
   alias KinesisClient.Stream.Shard.Pipeline
 
   require Logger
@@ -66,7 +65,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
 
           create_lease(state)
 
-        %ShardLease{} = s ->
+        s ->
           take_or_renew_lease(s, state)
       end
 
@@ -85,7 +84,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
 
     reply =
       case get_lease(state) do
-        %ShardLease{} = s ->
+        s ->
           {:noreply, take_or_renew_lease(s, state)}
 
         {:error, e} ->
@@ -96,7 +95,6 @@ defmodule KinesisClient.Stream.Shard.Lease do
     reply
   end
 
-  @spec take_or_renew_lease(shard_lease :: ShardLease.t(), state :: t()) :: t()
   defp take_or_renew_lease(shard_lease, %{lease_expiry: lease_expiry} = state) do
     cond do
       shard_lease.lease_owner == state.lease_owner ->
@@ -136,7 +134,6 @@ defmodule KinesisClient.Stream.Shard.Lease do
     AppState.get_lease(state.app_name, state.shard_id, state.app_state_opts)
   end
 
-  @spec create_lease(state :: t()) :: t()
   defp create_lease(%{app_state_opts: opts, app_name: app_name, lease_owner: lease_owner} = state) do
     Logger.debug(
       "Creating lease: [app_name: #{app_name}, shard_id: #{state.shard_id}, lease_owner: " <>
@@ -149,7 +146,6 @@ defmodule KinesisClient.Stream.Shard.Lease do
     end
   end
 
-  @spec renew_lease(shard_lease :: ShardLease.t(), state :: t()) :: t()
   defp renew_lease(shard_lease, %{app_state_opts: opts, app_name: app_name} = state) do
     expected = shard_lease.lease_count + 1
 
