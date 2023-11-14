@@ -24,8 +24,12 @@ defmodule KinesisClient.Stream.Coordinator do
     # unique reference used to identify this instance KinesisClient.Stream
     :worker_ref,
     :shard_args,
-    shard_ref_map: %{}
+    shard_ref_map: %{},
+    startup_attempt: 1
   ]
+
+  @max_startup_attempts 3
+  @jitter 1000
 
   @doc """
   Starts a KinesisClient.Stream.Coordinator. KinesisClient.Stream should handle starting this.
@@ -96,13 +100,10 @@ defmodule KinesisClient.Stream.Coordinator do
   end
 
   defp describe_stream(state) do
-    %{"StreamStatus" => status, "Shards" => shards} =
-      get_shards(state.stream_name, state.kinesis_opts)
+    case get_shards(state.stream_name, state.kinesis_opts) do
+      {:ok, %{"StreamStatus" => "ACTIVE", "Shards" => shards}} ->
+        notify({:shards, shards}, state)
 
-    notify({:shards, shards}, state)
-
-    case status do
-      "ACTIVE" ->
         shard_graph = build_shard_graph(shards)
 
         shard_map =
@@ -116,12 +117,24 @@ defmodule KinesisClient.Stream.Coordinator do
 
         {:noreply, %{state | shard_graph: shard_graph, shard_ref_map: map}}
 
-      other ->
-        Logger.info("Stream is not in active state, sleeping... Stream state: #{inspect(other)}")
+      {:error, reason} ->
+        Logger.info("[kcl_ex] error describing stream shards with result #{inspect(reason)}")
 
-        :timer.sleep(state.retry_timeout)
-        notify({:retrying_describe_stream, self()}, state)
-        {:noreply, state, {:continue, :describe_stream}}
+        if state.startup_attempt < @max_startup_attempts do
+          sleep_period_ms = state.retry_timeout + :rand.uniform(@jitter)
+          :timer.sleep(sleep_period_ms)
+
+          state = %{state | startup_attempt: state.startup_attempt + 1}
+          notify({:retrying_describe_stream, self()}, state)
+
+          {:noreply, state, {:continue, :describe_stream}}
+        else
+          Logger.error(
+            "[kcl_ex] error starting stream coordinator after three attempts for stream #{state.stream_name}"
+          )
+
+          {:stop, :normal, state}
+        end
     end
   end
 
@@ -240,7 +253,7 @@ defmodule KinesisClient.Stream.Coordinator do
   end
 
   defp get_shards(stream_name, kinesis_opts, shard_start_id \\ nil, shard_list \\ []) do
-    {:ok, result} =
+    describe_result =
       case shard_start_id do
         nil ->
           Kinesis.describe_stream(stream_name, kinesis_opts)
@@ -252,8 +265,8 @@ defmodule KinesisClient.Stream.Coordinator do
           )
       end
 
-    case result do
-      %{"StreamDescription" => %{"HasMoreShards" => true, "Shards" => shards}} ->
+    case describe_result do
+      {:ok, %{"StreamDescription" => %{"HasMoreShards" => true, "Shards" => shards}}} ->
         get_shards(
           stream_name,
           kinesis_opts,
@@ -261,8 +274,14 @@ defmodule KinesisClient.Stream.Coordinator do
           shards ++ shard_list
         )
 
-      %{"StreamDescription" => %{"HasMoreShards" => false, "Shards" => shards} = stream} ->
-        stream |> Map.put("Shards", shards ++ shard_list)
+      {:ok, %{"StreamDescription" => %{"HasMoreShards" => false, "Shards" => shards} = stream}} ->
+        {:ok, Map.put(stream, "Shards", shards ++ shard_list)}
+
+      {:error, _} = error ->
+        error
+
+      _ ->
+        {:error, :unknown}
     end
   end
 

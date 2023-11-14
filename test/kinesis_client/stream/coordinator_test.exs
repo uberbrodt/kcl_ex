@@ -169,7 +169,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
     assert Enum.empty?(shards) == false
   end
 
-  test "will retry initialization after :retry_timeout if stream status not ACTIVE" do
+  test "will retry initialization after :retry_timeout if describe stream returns an error" do
     {:ok, _} =
       start_supervised({DynamicSupervisor, [strategy: :one_for_one, name: @supervisor_name]})
 
@@ -177,7 +177,7 @@ defmodule KinesisClient.Stream.CoordinatorTest do
 
     expect(KinesisMock, :describe_stream, fn stream_name, _opts ->
       assert stream_name == @stream_name
-      {:ok, KinesisClient.KinesisResponses.describe_stream(stream_status: "UPDATING")}
+      {:error, :foobar}
     end)
 
     AppStateMock
