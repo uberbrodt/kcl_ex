@@ -272,12 +272,18 @@ defmodule KinesisClient.Stream.Shard.Producer do
       {:ok,
        %{
          "NextShardIterator" => next_iterator,
-         "MillisBehindLatest" => _millis_behind_latest,
+         "MillisBehindLatest" => millis_behind_latest,
          "Records" => records
        }} ->
         new_demand = demand - length(records)
 
         messages = wrap_records(records)
+
+        :telemetry.execute(
+          [:kinesis_client, :shard_producer, :get_records_millis_behind_latest],
+          millis_behind_latest,
+          telemetry_meta(state)
+        )
 
         poll_timer =
           case {records, new_demand} do
