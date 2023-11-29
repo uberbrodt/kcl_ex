@@ -6,6 +6,7 @@ defmodule KinesisClient.Stream.Shard.Pipeline do
 
   def start_link(opts) do
     producer_opts = [
+      consumer_name: opts[:consumer_name],
       app_name: opts[:app_name],
       shard_id: opts[:shard_id],
       lease_owner: opts[:lease_owner],

@@ -11,6 +11,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
   defstruct [
     :kinesis_opts,
+    :consumer_name,
     :stream_name,
     :shard_id,
     :shard_iterator,
@@ -48,6 +49,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
       app_name: opts[:app_name],
       lease_owner: opts[:lease_owner],
       kinesis_opts: opts[:kinesis_opts],
+      consumer_name: opts[:consumer_name],
       stream_name: opts[:stream_name],
       status: opts[:status],
       app_state_opts: Keyword.get(opts, :app_state_opts, []),
@@ -391,6 +393,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
   defp telemetry_meta(%__MODULE__{} = state) do
     %{
       shard_id: state.shard_id,
+      consumer_name: state.consumer_name,
       stream_name: state.stream_name,
       app_name: state.app_name
     }

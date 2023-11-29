@@ -37,6 +37,7 @@ defmodule KinesisClient.Stream do
     shard_consumer = get_shard_consumer(opts)
 
     shard_args = [
+      consumer_name: opts[:name],
       app_name: opts[:app_name],
       coordinator_name: coordinator_name,
       stream_name: stream_name,
