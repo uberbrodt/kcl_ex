@@ -281,7 +281,7 @@ defmodule KinesisClient.Stream.Shard.Producer do
 
         :telemetry.execute(
           [:kinesis_client, :shard_producer, :get_records_millis_behind_latest],
-          millis_behind_latest,
+          %{duration: millis_behind_latest},
           telemetry_meta(state)
         )
 
