@@ -1,4 +1,5 @@
 defmodule KinesisClient.TestStream do
+  @moduledoc false
   alias ExAws.Kinesis
 
   def describe_stream(_stream_name) do

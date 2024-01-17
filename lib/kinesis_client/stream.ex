@@ -12,17 +12,17 @@ defmodule KinesisClient.Stream do
 
   ## Options
     * `:stream_name` - Required. The Kinesis Data Stream to process.
-    * `:app_name` - Required.This should be a unique name across all your applications and the DynamodDB
+    * `:app_name` - Required. This should be a unique name across all your applications and the DynamodDB
       tablespace in your AWS region
     * `:name` - The process name. Defaults to `KinesisClient.Stream`.
     * `:max_demand` - The maximum number of records to retrieve from Kinesis. Defaults to 100.
     * `:aws_region` - AWS region. Will rely on ExAws defaults if not set.
     * `:shard_supervisor` - The child_spec for the Supervisor that monitors the ProcessingPipelines.
       Must implement the DynamicSupervisor behaviour.
-    * `:lease_renew_interval`(optional) - How long (in milliseconds) a lease will be held before a renewal is attempted.
+    * `:lease_renew_interval`(optional) - How long (in milliseconds) a lease will be held before a renewal is attempted. Defaults to 30 seconds
     * `:lease_expiry`(optional) - The lenght of time in milliseconds that least lasts for. If a
       lease is not renewed within this time frame, then that lease is considered expired and can be
-      taken by another process.
+      taken by another process. Defaults to 90 seconds.
   """
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))

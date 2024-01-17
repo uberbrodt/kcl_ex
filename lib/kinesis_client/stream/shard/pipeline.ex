@@ -1,5 +1,13 @@
 defmodule KinesisClient.Stream.Shard.Pipeline do
-  @moduledoc false
+  @moduledoc """
+  This module is responsible for managing the pipeline for a given shard. It will start a
+  Broadway pipeline to process records from the shard. The producer of that pipeline
+  still expects a shard lease to be acquired before it will start processing records.
+
+  The pipeline's producer starts with a status of `:stopped` and will not start processing
+  records until it receives a `:start` message. This message is sent by the shard lease
+  process when it has acquired the lease.
+  """
   use Broadway
   import KinesisClient.Util
   alias KinesisClient.Stream.Shard.Producer
@@ -47,6 +55,10 @@ defmodule KinesisClient.Stream.Shard.Pipeline do
 
     pipeline_opts = [
       name: name(opts[:app_name], opts[:shard_id]),
+      # 5 minutes was the default behavior for kcl_ex, previously
+      # handled using Process.send_after.
+      # This ensures shard split/merges finish processing messages.
+      shutdown: :timer.minutes(5),
       producer: [
         module: {Producer, producer_opts},
         concurrency: 1

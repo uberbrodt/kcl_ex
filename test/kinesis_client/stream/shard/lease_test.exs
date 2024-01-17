@@ -1,8 +1,8 @@
 defmodule KinesisClient.Stream.Shard.LeaseTest do
   use KinesisClient.Case
 
-  alias KinesisClient.Stream.Shard.Lease
   alias KinesisClient.Stream.AppState.ShardLease
+  alias KinesisClient.Stream.Shard.Lease
 
   # TODO This test is failing for as yet unclear reasons
   # Blocking it out for now
@@ -123,7 +123,7 @@ defmodule KinesisClient.Stream.Shard.LeaseTest do
       {:ok, lc + 1}
     end)
 
-    {:ok, pid} = start_supervised({Lease, lease_opts})
+    {:ok, _pid} = start_supervised({Lease, lease_opts})
 
     assert_receive {:initialized, %{lease_count_increment_time: lcit} = lease_state}, 1_000
     assert lease_state.lease_holder == false
@@ -132,7 +132,7 @@ defmodule KinesisClient.Stream.Shard.LeaseTest do
     assert_receive {:tracking_lease, _}, 5_000
     assert_receive {:lease_taken, lease_state}, 15_000
 
-    stop_supervised(pid)
+    stop_supervised(Lease)
     assert lease_state.lease_holder == true
     assert lease_state.lease_count == shard_lease.lease_count + 1
     assert lcit < lease_state.lease_count_increment_time
@@ -148,7 +148,7 @@ defmodule KinesisClient.Stream.Shard.LeaseTest do
       shard_lease
     end)
 
-    {:ok, pid} = start_supervised({Lease, lease_opts})
+    {:ok, _pid} = start_supervised({Lease, lease_opts})
 
     assert_receive {:initialized, %{lease_count_increment_time: _lcit} = lease_state}, 1_000
     assert lease_state.lease_holder == false
@@ -158,7 +158,7 @@ defmodule KinesisClient.Stream.Shard.LeaseTest do
     assert lease_state.lease_count == shard_lease.lease_count
 
     assert_receive {:tracking_lease, lease_state}, 5_000
-    stop_supervised(pid)
+    stop_supervised(Lease)
     assert lease_state.lease_holder == false
     assert lease_state.lease_count == shard_lease.lease_count
   end

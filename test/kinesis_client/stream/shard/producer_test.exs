@@ -230,7 +230,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
   describe "get_top_checkpoint/2" do
     test "sorts sequence numbers correctly" do
       assert "12345+10" =
-               KinesisClient.Stream.Shard.Producer.get_top_checkpoint(
+               Producer.get_top_checkpoint(
                  [%{metadata: %{"SequenceNumber" => "12345+1"}}],
                  [%{metadata: %{"SequenceNumber" => "12345+10"}}]
                )
@@ -238,7 +238,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
 
     test "returns -1 for incorrectly-formatted messages" do
       assert "12345+5" =
-               KinesisClient.Stream.Shard.Producer.get_top_checkpoint(
+               Producer.get_top_checkpoint(
                  [%{mettadatums: %{"SequenceWhat?" => "12345+1"}}],
                  [
                    %{metaverse: %{"NotConforming" => "12345+10"}},
@@ -249,7 +249,7 @@ defmodule KinesisClient.Stream.Shard.ProducerTest do
 
     test "returns -1 for empty lists" do
       assert "-1" =
-               KinesisClient.Stream.Shard.Producer.get_top_checkpoint(
+               Producer.get_top_checkpoint(
                  [],
                  []
                )

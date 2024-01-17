@@ -1,8 +1,14 @@
 defmodule KinesisClient.Stream.AppState.Dynamo do
-  @moduledoc false
+  @moduledoc """
+  Adapter for using DynamoDB as the application state store (the default).
+
+  See KinesisClient.Stream.AppState for more information.
+  """
+
+  alias ExAws.Dynamo
   alias KinesisClient.Stream.AppState.Adapter, as: AppStateAdapter
   alias KinesisClient.Stream.AppState.ShardLease
-  alias ExAws.Dynamo
+
   require Logger
 
   @behaviour AppStateAdapter
@@ -149,10 +155,10 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
       return_values: "UPDATED_NEW"
     ]
 
-    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt) |> ExAws.request() do
+    case Dynamo.update_item(app_name, %{"shard_id" => shard_id}, update_opt)
+         |> ExAws.request() do
       {:ok, %{"Attributes" => %{"completed" => %{"BOOL" => true}}}} -> :ok
       {:error, {"ConditionalCheckFailedException", _}} -> {:error, :lease_owner_match}
-      reply -> reply
     end
   end
 

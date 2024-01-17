@@ -1,9 +1,9 @@
 defmodule KinesisClient.Stream.AppState.DynamoTest do
   use KinesisClient.Case
 
+  alias ExAws.Dynamo
   alias KinesisClient.Stream.AppState.Dynamo, as: AppState
   alias KinesisClient.Stream.AppState.ShardLease
-  alias ExAws.Dynamo
 
   setup_all do
     app_name = "foo_app_#{random_string()}"
