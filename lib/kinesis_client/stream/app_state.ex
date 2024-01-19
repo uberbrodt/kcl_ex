@@ -44,8 +44,8 @@ defmodule KinesisClient.Stream.AppState do
   This indicates that all records for the shard have been processed by the app. `KinesisClient.Stream.Shard`
   processes will not be started for ShardLease's that are completed.
   """
-  def close_shard(app_name, shard_id, opts \\ []),
-    do: adapter(opts).close_shard(app_name, shard_id, opts)
+  def close_shard(app_name, shard_id, lease_owner, opts \\ []),
+    do: adapter(opts).close_shard(app_name, shard_id, lease_owner, opts)
 
   defp adapter(opts) do
     Keyword.get(opts, :adapter, KinesisClient.Stream.AppState.Dynamo)

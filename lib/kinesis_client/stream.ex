@@ -12,17 +12,17 @@ defmodule KinesisClient.Stream do
 
   ## Options
     * `:stream_name` - Required. The Kinesis Data Stream to process.
-    * `:app_name` - Required.This should be a unique name across all your applications and the DynamodDB
+    * `:app_name` - Required. This should be a unique name across all your applications and the DynamodDB
       tablespace in your AWS region
     * `:name` - The process name. Defaults to `KinesisClient.Stream`.
     * `:max_demand` - The maximum number of records to retrieve from Kinesis. Defaults to 100.
     * `:aws_region` - AWS region. Will rely on ExAws defaults if not set.
     * `:shard_supervisor` - The child_spec for the Supervisor that monitors the ProcessingPipelines.
       Must implement the DynamicSupervisor behaviour.
-    * `:lease_renew_interval`(optional) - How long (in milliseconds) a lease will be held before a renewal is attempted.
+    * `:lease_renew_interval`(optional) - How long (in milliseconds) a lease will be held before a renewal is attempted. Defaults to 30 seconds
     * `:lease_expiry`(optional) - The lenght of time in milliseconds that least lasts for. If a
       lease is not renewed within this time frame, then that lease is considered expired and can be
-      taken by another process.
+      taken by another process. Defaults to 90 seconds.
   """
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
@@ -37,6 +37,7 @@ defmodule KinesisClient.Stream do
     shard_consumer = get_shard_consumer(opts)
 
     shard_args = [
+      consumer_name: opts[:name],
       app_name: opts[:app_name],
       coordinator_name: coordinator_name,
       stream_name: stream_name,
@@ -68,7 +69,7 @@ defmodule KinesisClient.Stream do
     ]
 
     Logger.debug(
-      "Starting KinesisClient.Stream: [app_name: #{app_name}, stream_name: {stream_name}]"
+      "Starting KinesisClient.Stream: [app_name: #{app_name}, stream_name: #{stream_name}]"
     )
 
     Supervisor.init(children, strategy: :one_for_all)
@@ -76,10 +77,14 @@ defmodule KinesisClient.Stream do
 
   defp get_coordinator_name(opts) do
     case Keyword.get(opts, :shard_supervisor) do
-      nil -> Module.concat(KinesisClient.Stream.Coordinator, opts[:stream_name])
+      nil ->
+        Module.concat([KinesisClient.Stream.Coordinator, opts[:app_name], opts[:stream_name]])
+
       # Shard processes may be running on nodes different from the Coordinator if passed
       # :shard_supervisor is distributed,so use :global to allow inter-node communication.
-      _ -> {:global, Module.concat(KinesisClient.Stream.Coordinator, opts[:stream_name])}
+      _ ->
+        {:global,
+         Module.concat([KinesisClient.Stream.Coordinator, opts[:app_name], opts[:stream_name]])}
     end
   end
 
@@ -102,7 +107,13 @@ defmodule KinesisClient.Stream do
   @spec get_shard_supervisor(keyword) ::
           {{module, keyword}, name :: any} | no_return
   defp get_shard_supervisor(opts) do
-    name = Module.concat(KinesisClient.Stream.ShardSupervisor, opts[:stream_name])
+    name =
+      Module.concat([
+        KinesisClient.Stream.ShardSupervisor,
+        opts[:app_name],
+        opts[:stream_name]
+      ])
+
     {{DynamicSupervisor, [strategy: :one_for_one, name: name]}, name}
   end
 

@@ -30,7 +30,7 @@ defmodule KinesisClient.Stream.AppState.Adapter do
               :ok | {:error, any}
 
   @callback renew_lease(app_name :: String.t(), shard_lease :: ShardLease.t(), opts :: keyword) ::
-              {:ok, new_lease_count :: integer} | :lease_renew_failed | {:error, any}
+              {:ok, new_lease_count :: integer} | {:error, any}
 
   @callback take_lease(
               app_name :: String.t(),
@@ -39,7 +39,7 @@ defmodule KinesisClient.Stream.AppState.Adapter do
               lease_count :: integer,
               opts :: keyword
             ) ::
-              {:ok, new_lease_count :: integer} | :lease_take_failed | {:error, any}
+              {:ok, new_lease_count :: integer} | {:error, any}
 
   @callback close_shard(
               app_name :: String.t(),

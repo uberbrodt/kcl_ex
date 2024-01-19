@@ -1,4 +1,5 @@
 defmodule KinesisClient.KinesisResponses do
+  @moduledoc false
   def shard_object do
     %{
       "HashKeyRange" => %{

@@ -4,17 +4,17 @@ Mox.defmock(KinesisClient.Stream.AppStateMock, for: KinesisClient.Stream.AppStat
 Application.put_env(:ex_aws, :dynamodb,
   scheme: "http://",
   host: "localhost",
-  port: "4569",
+  port: "4566",
   region: "us-east-1"
 )
 
 Application.put_env(:ex_aws, :kinesis,
   scheme: "http://",
   host: "localhost",
-  port: "4568",
+  port: "4566",
   region: "us-east-1"
 )
 
 Logger.configure(level: :warn)
 
-ExUnit.start()
+ExUnit.start(capture_log: true)

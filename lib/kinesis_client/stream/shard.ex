@@ -1,5 +1,12 @@
 defmodule KinesisClient.Stream.Shard do
-  @moduledoc false
+  @moduledoc """
+  This module starts up lease management for a given shard and starts a pipeline to process
+  records from the shard, once the lease is acquired.
+
+  Some consideration could be made for combining the lease management and pipeline into a single
+  process so that state management is more centralized.
+  """
+
   use Supervisor, restart: :transient
   alias KinesisClient.Stream.Shard.{Lease, Pipeline}
   import KinesisClient.Util
@@ -16,6 +23,7 @@ defmodule KinesisClient.Stream.Shard do
     ]
 
     pipeline_opts = [
+      consumer_name: opts[:consumer_name],
       app_name: opts[:app_name],
       shard_id: opts[:shard_id],
       lease_owner: opts[:lease_owner],
@@ -48,8 +56,7 @@ defmodule KinesisClient.Stream.Shard do
     Supervisor.stop(shard, :normal)
   end
 
-  def name(stream_name, shard_id) do
-    result = Module.concat(__MODULE__, stream_name)
-    Module.concat(result, shard_id)
+  def name(app_name, stream_name, shard_id) do
+    Module.concat([__MODULE__, app_name, stream_name, shard_id])
   end
 end
