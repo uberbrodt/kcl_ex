@@ -70,7 +70,7 @@ defmodule KinesisClient.Stream.Coordinator do
     }
 
     Logger.debug(
-      "[kcl_ex] Starting KinesisClient.Stream.Coordinator for #{stream_name}: #{inspect(state)}"
+      "[kcl_ex] Starting KinesisClient.Stream.Coordinator for #{state.stream_name}: #{inspect(state)}"
     )
 
     {:ok, state, {:continue, :initialize}}
