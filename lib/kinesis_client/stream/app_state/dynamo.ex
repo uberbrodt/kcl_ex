@@ -123,7 +123,7 @@ defmodule KinesisClient.Stream.AppState.Dynamo do
   @impl AppStateAdapter
   def update_checkpoint(app_name, shard_id, lease_owner, checkpoint, _opts) do
     Logger.debug(
-      "AppState.Dynamo updating checkpoint: [checkpoint: #{checkpoint}, shard_id: #{shard_id}]"
+      "AppState.Dynamo updating checkpoint: [checkpoint: #{checkpoint}, shard_id: #{shard_id}, app_name: #{app_name}]"
     )
 
     update_opt = [

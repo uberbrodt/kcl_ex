@@ -95,7 +95,10 @@ defmodule KinesisClient.Stream.Shard.Lease do
           {:noreply, take_or_renew_lease(s, state)}
 
         {:error, e} ->
-          Logger.error("[kcl_ex] Error fetching shard #{state.share_id}: #{inspect(e)}")
+          Logger.error(
+            "[kcl_ex] Error fetching shard #{state.shard_id} for app_name #{state.app_name}: #{inspect(e)}"
+          )
+
           {:noreply, state}
       end
 
@@ -123,7 +126,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
 
         Logger.debug(
           "[kcl_ex] Lease is owned by another node, and could not be taken: [shard_id: #{state.shard_id}, " <>
-            "lease_owner: #{state.lease_owner}, lease_count: #{state.lease_count}]"
+            "lease_owner: #{state.lease_owner}, lease_count: #{state.lease_count}, app_name: #{state.app_name}]"
         )
 
         notify({:tracking_lease, state}, state)
@@ -182,7 +185,10 @@ defmodule KinesisClient.Stream.Shard.Lease do
         %{state | lease_holder: false, lease_count_increment_time: current_time()}
 
       {:error, e} ->
-        Logger.error("[kcl_ex] Error trying to renew lease for #{state.shard_id}: #{inspect(e)}")
+        Logger.error(
+          "[kcl_ex] Error trying to renew lease for #{state.shard_id} app_name #{app_name}: #{inspect(e)}"
+        )
+
         state
     end
   end
@@ -191,7 +197,7 @@ defmodule KinesisClient.Stream.Shard.Lease do
     expected = state.lease_count + 1
 
     Logger.debug(
-      "[kcl_ex] Attempting to take lease: [lease_owner: #{state.lease_owner}, shard_id: #{state.shard_id}]"
+      "[kcl_ex] Attempting to take lease: [app_name: #{app_name}, lease_owner: #{state.lease_owner}, shard_id: #{state.shard_id}]"
     )
 
     case AppState.take_lease(app_name, state.shard_id, state.lease_owner, state.lease_count, opts) do

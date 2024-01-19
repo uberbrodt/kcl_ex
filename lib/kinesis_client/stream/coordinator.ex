@@ -35,7 +35,7 @@ defmodule KinesisClient.Stream.Coordinator do
   ]
 
   @max_startup_attempts 3
-  @jitter 1000
+  @jitter 5000
 
   @doc """
   Starts a KinesisClient.Stream.Coordinator. KinesisClient.Stream should handle starting this.
@@ -54,10 +54,6 @@ defmodule KinesisClient.Stream.Coordinator do
     GenServer.call(coordinator, {:continue_shard_with_children, shard_id, child_shards})
   end
 
-  def append_shards(coordinator, child_shards) do
-    GenServer.call(coordinator, {:append_shards, child_shards})
-  end
-
   @impl GenServer
   def init(opts) do
     state = %__MODULE__{
@@ -73,7 +69,10 @@ defmodule KinesisClient.Stream.Coordinator do
       retry_timeout: Keyword.get(opts, :retry_timeout, 30_000)
     }
 
-    Logger.debug("[kcl_ex] Starting KinesisClient.Stream.Coordinator: #{inspect(state)}")
+    Logger.debug(
+      "[kcl_ex] Starting KinesisClient.Stream.Coordinator for #{stream_name}: #{inspect(state)}"
+    )
+
     {:ok, state, {:continue, :initialize}}
   end
 
@@ -98,24 +97,6 @@ defmodule KinesisClient.Stream.Coordinator do
   @impl GenServer
   def handle_call(:get_graph, _from, %{shard_graph: graph} = s) do
     {:reply, graph, s}
-  end
-
-  def handle_call({:append_shards, child_shards}, _from, state) do
-    shard_pid_map =
-      Enum.reduce(
-        child_shards,
-        state.shard_pid_map,
-        fn %{"ParentShards" => parent_shards, "ShardId" => shard_id}, acc ->
-          maybe_start_shard(parent_shards, shard_id, state, acc)
-        end
-      )
-
-    shard_map =
-      child_shards
-      |> Map.new(&{Map.fetch!(&1, "ShardId"), &1})
-      |> Map.merge(state.shard_map)
-
-    {:reply, :ok, %__MODULE__{state | shard_pid_map: shard_pid_map, shard_map: shard_map}}
   end
 
   def handle_call(
@@ -184,14 +165,29 @@ defmodule KinesisClient.Stream.Coordinator do
             Map.put(acc, shard_id, s)
           end)
 
-        state = %{state | shard_map: shard_map}
+        state = %{state | shard_map: shard_map, retry_timeout: 1}
 
         map = start_shards(shard_graph, state)
 
         {:noreply, %{state | shard_graph: shard_graph, shard_pid_map: map}}
 
+      {:error, {"LimitExceededException", _}} ->
+        sleep_period_ms = state.retry_timeout + :rand.uniform(@jitter)
+
+        Logger.error(
+          "[kcl_ex] error describing stream #{state.stream_name} shards due to limit exceeded: Retrying in #{sleep_period_ms} ms"
+        )
+
+        Process.sleep(sleep_period_ms)
+
+        notify({:retrying_describe_stream, self()}, state)
+
+        {:noreply, state, {:continue, :describe_stream}}
+
       {:error, reason} ->
-        Logger.error("[kcl_ex] error describing stream shards with result #{inspect(reason)}")
+        Logger.error(
+          "[kcl_ex] error describing stream #{state.stream_name} shards with result #{inspect(reason)}"
+        )
 
         if state.startup_attempt < @max_startup_attempts do
           sleep_period_ms = state.retry_timeout + :rand.uniform(@jitter)
@@ -203,7 +199,7 @@ defmodule KinesisClient.Stream.Coordinator do
           {:noreply, state, {:continue, :describe_stream}}
         else
           Logger.error(
-            "[kcl_ex] error starting stream coordinator after three attempts for stream #{state.stream_name}"
+            "[kcl_ex] error starting stream coordinator after #{@max_startup_attempts} attempts for stream #{state.stream_name}"
           )
 
           {:stop, :normal, state}
@@ -269,7 +265,9 @@ defmodule KinesisClient.Stream.Coordinator do
 
   defp maybe_start_shard(parents, shard_id, state, shard_pid_map) do
     if parents_completed?(parents, shard_id, state) and not shard_completed?(shard_id, state) do
-      Logger.info("[kcl_ex] Parent shards are complete and child is not, so starting #{shard_id}")
+      Logger.info(
+        "[kcl_ex] Parent shard(s) #{Enum.join(parents, ", ")} for stream #{state.stream_name} are complete and child is not, so starting #{shard_id}"
+      )
 
       {:ok, shard_pid} = start_shard(shard_id, state)
       Map.put(shard_pid_map, shard_id, shard_pid)
@@ -286,7 +284,10 @@ defmodule KinesisClient.Stream.Coordinator do
         true
 
       {parent, _} ->
-        Logger.info("[kcl_ex] Parent shard #{parent} is not completed so skipping #{shard_id}")
+        Logger.info(
+          "[kcl_ex] Parent shard #{parent} for stream #{state.stream_name} is not completed so skipping #{shard_id}"
+        )
+
         false
     end)
   end
